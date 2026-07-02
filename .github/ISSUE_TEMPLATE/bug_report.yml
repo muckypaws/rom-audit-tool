@@ -1,0 +1,166 @@
+name: Bug report
+description: Report a ROM that's misdetected, a crash, or unexpected tool behaviour
+title: "[Bug]: "
+labels: ["bug", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report this. The single biggest
+        thing that makes a report actionable is the **archived logs**
+        for the specific ROM involved — almost every fix in this
+        project's history started from reading an actual stdout/stderr
+        log, not from a description alone. Five minutes gathering the
+        items below will get this looked at far faster than a
+        description on its own would.
+
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform
+      options:
+        - Batocera
+        - RetroPie
+        - Recalbox
+        - Other / not sure
+    validations:
+      required: true
+
+  - type: input
+    id: platform-version
+    attributes:
+      label: Platform version
+      description: e.g. Batocera v43, RetroPie 4.8.x, Recalbox 10.x
+      placeholder: "Batocera v43"
+    validations:
+      required: true
+
+  - type: input
+    id: tool-version
+    attributes:
+      label: ROM Audit Tool version
+      description: Shown at the top of the dashboard, or in --help output
+      placeholder: "1.4.3"
+    validations:
+      required: true
+
+  - type: textarea
+    id: command
+    attributes:
+      label: Exact command used
+      description: >-
+        Copy the full command, including every flag. Several confirmed
+        bugs in this project only happened with one specific flag
+        combination (e.g. with --screenshot but not without it) — the
+        exact flags matter, "I ran a normal audit" isn't enough to
+        reproduce from.
+      render: bash
+      placeholder: "python3 rom_audit.py --system mame --autofix --heuristic"
+    validations:
+      required: true
+
+  - type: input
+    id: affected-rom
+    attributes:
+      label: System and ROM affected
+      description: System folder name and exact ROM filename
+      placeholder: "mame / pacman.zip"
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected-actual
+    attributes:
+      label: What you expected vs. what actually happened
+      description: >-
+        Be specific about what you saw on the actual screen if
+        relevant (e.g. "game loaded and was playable" vs. "grey error
+        screen" vs. "EmulationStation's own menu, game never
+        appeared") — these look identical in some log-only contexts
+        and the visual distinction is often the deciding clue.
+      placeholder: |
+        Expected: ROM should report OK, it plays fine when launched manually.
+        Actual: Tool reports ERROR / GENUINE ERROR / NEEDS REVIEW (delete as appropriate).
+    validations:
+      required: true
+
+  - type: textarea
+    id: csv-row
+    attributes:
+      label: The CSV row for this ROM
+      description: >-
+        The exact line from rom_audit.csv for the affected ROM —
+        system, romname, status, elapsed, timestamp, checksum, notes,
+        all of it. Find it with:
+        grep "ROMNAME" rom_audit.csv
+      render: text
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Archived stdout/stderr logs
+      description: >-
+        Paste the contents of BOTH files from
+        audit_logs/<system>/<romname>/ — es_launch_stdout.log AND
+        es_launch_stderr.log. If the ROM currently shows OK and the
+        logs have already been cleaned up by a later passing run,
+        re-run with: python3 rom_audit.py --test "romname" --system
+        SYSTEM --screenshot
+        first — the --screenshot flag preserves the whole folder
+        regardless of result, so the logs won't be wiped even if it
+        passes again.
+      render: text
+    validations:
+      required: true
+
+  - type: textarea
+    id: screenshot
+    attributes:
+      label: Screenshot
+      description: >-
+        Drag and drop an image here — either the one the tool
+        captured (audit_logs/<system>/<romname>/<system>_<romname>_
+        screenshot.png or _review.png) if one exists, or a photo/photo
+        of the actual screen if not. For a "the game never actually
+        loaded" type report, this is frequently the single piece of
+        evidence that settles what's actually happening — several
+        issues in this project's own history turned out to be the
+        tool watching EmulationStation's own menu, not the game, and a
+        screenshot was what made that visible.
+    validations:
+      required: false
+
+  - type: textarea
+    id: rom-file
+    attributes:
+      label: The ROM itself, or enough to identify the exact dump
+      description: >-
+        If this is homebrew, public domain, or otherwise not
+        copyrighted, attaching the actual file (or a link to it) lets
+        this be reproduced directly — by far the fastest path to a
+        fix. If the ROM is commercial and can't be shared, please
+        instead provide whatever identifies the specific dump: the
+        exact filename, file size in bytes, and the checksum recorded
+        in the CSV (or run "python3 scripts/compute_checksums.py
+        --system SYSTEM" if the CSV checksum column is blank).
+        Different dumps of the same game can behave completely
+        differently, so the filename alone is often not enough.
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: checked-existing-docs
+    attributes:
+      label: Before submitting
+      options:
+        - label: >-
+            I checked the Troubleshooting and Known Limitations
+            sections of the user manual / README for this exact
+            behaviour first
+          required: true
+        - label: >-
+            I'm not attaching a copyrighted ROM (commercial dumps —
+            please provide identifying details instead, per above)
+          required: true
