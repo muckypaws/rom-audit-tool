@@ -1,0 +1,164 @@
+> adam
+MISSING 4fe4f6800076ea3d897d4285653447bd bios/adam.zip
+MISSING 0423e9e9bf5036aa1e9d656b6a1f842c bios/adam_ddp.zip
+MISSING a1a2a353dea4b8769a2da733822abfdc bios/adam_fdc.zip
+MISSING d81e0b2bb6b98999541c5f40b489e88f bios/adam_kb.zip
+MISSING 3cdf2fe48ac4224b56f26c03f6c68982 bios/adam_prn.zip
+> advision
+MISSING fc5e71445e4947a9d00eedbc66b13a8f bios/advision.zip
+> amiga1200
+MISSING b7cc148386aa631136f510cd29e42fc3 bios/amiga-os-300-a1200.rom
+MISSING 9bdedde6a4f33555b4a270c8ca53297d bios/amiga-os-310-a4000.rom
+> amiga500
+MISSING 465646c9b6729f77eea5314d1f057951 bios/kick37350.A600
+MISSING e40a5dfb3d017ba8779faba30cbd1c8e bios/amiga-os-310-a600.rom
+> apfm1000
+MISSING 89a7cfa5469ce24773721d65b28f8544 bios/apfm1000.zip
+> apple2
+MISSING 95b91e4a2fe7d6f13d353ba1827d37f9 bios/votrax.zip
+MISSING 5f1be0c1cdff26f5956eef9643911886 bios/d2fdc.zip
+> archimedes
+MISSING 232a302efe19278d9df6ecbc8ea3dc6c bios/aa310.zip
+MISSING 1a8617c1abe3e0729d20ce844e1e12a8 bios/archimedes_keyboard.zip
+> astrocde
+MISSING 7d25a26e5c4841b364cfe6b1735eaf03 bios/astrocde.zip
+> atom
+MISSING 9627dfb5f8302db8dd5702dbf7c09f72 bios/atom.zip
+> atomiswave
+MISSING 0ec5ae5b5a5c4959fa8b43fcf8687f7c bios/dc/awbios.zip
+> bbc
+MISSING 35e9ab10bcf016bd24b4c716add009b9 bios/bbcb.zip
+MISSING 1d250b0242e447e9106e8bfd1f27ea84 bios/bbc_acorn8271.zip
+MISSING 8b3c10a2317808ed94d6c6073b5b3327 bios/saa5050.zip
+MISSING e6e84221c29b5d31d07055039583c8e7 bios/bbc_tube_80186.zip
+MISSING 3f3dd4614db30f6e383794731272076a bios/bbcm.zip
+MISSING 956bf71da840943050836ade2474ef7b bios/bbcmc.zip
+MISSING baf5cb5564ff6e6b4400243e7612f323 bios/bbc_bitstik1.zip
+MISSING c196c145b3de630f85f625ca762e5504 bios/bbc_bitstik2.zip
+MISSING - bios/mame/samples/bbc.zip
+> camplynx
+MISSING dde90a794e5324002a9fd7f79cec3172 bios/lynx48k.zip
+MISSING 89ba52f683cd79638646874e965476b6 bios/lynx96k.zip
+MISSING f9f54913cdedb22bb8f0c549ad121379 bios/lynx128k.zip
+> coco
+MISSING a74f3d95b395dad7cdca19d560eeea74 bios/coco.zip
+MISSING 21070aa0496142b886c562bf76d7c113 bios/coco2.zip
+MISSING c2fc43556eb6b7b25bdf5955bd9df825 bios/coco2b.zip
+MISSING 7233c6c429f3ce1c7392f28a933e0b6f bios/coco3.zip
+MISSING 4ae57e5a8e7494e5485446fefedb580b bios/coco3p.zip
+MISSING 8cab28f4b7311b8df63c07bb3b59bfd5 bios/coco_fdc_v11.zip
+> crvision
+MISSING 3b1ef759d8e3fb4071582efd33dd05f9 bios/crvision.zip
+> electron
+MISSING 4688a93aa298b9431c1788c9b90378c8 bios/electron.zip
+MISSING df01cfe5894276de96bbd1c45b7e834c bios/electron64.zip
+MISSING f3a39227b401a2ce8cdc7e4b7a860aaf bios/electron_plus1.zip
+MISSING 5c39baa89fe8a40a5167a53cc5ae7791 bios/electron_plus3.zip
+> fm7
+MISSING d19ed5923aaae2ec43dffe7a0daa80cb bios/fm7.zip
+MISSING 7db27dede3e358017d518101850bccfa bios/fm77av.zip
+> fmtowns
+MISSING 75a5c7afb4bc8221bab8cf24db417950 bios/fmtmarty.zip
+MISSING feaf8c5675151e00cfe3ad27673bff29 bios/fmtowns.zip
+MISSING 1a15f6c1b58ec7e5f850118610a787a7 bios/fmtownsux.zip
+> gamate
+MISSING ef67993a94503c4b7798b5901c7dda52 bios/gamate.zip
+> gamecom
+MISSING f7bcefb6daf923c8e5ea2eb69f619efe bios/gamecom.zip
+> gamepock
+MISSING a0dd595eafb407a6a4b4ed800005a394 bios/gamepock.zip
+> gmaster
+MISSING 6bff08b5e5f96de405cd56d5f04a08f8 bios/gmaster.zip
+> gp32
+MISSING d4af2bc352bdaf4972ea40902feda114 bios/gp32.zip
+> laser310
+MISSING f7e5d9a3eb2b57bf5f4e2a4565318a8f bios/laser310.zip
+> macintosh
+MISSING 66223be1497460f1e60885eeb35e03cc bios/MacII.ROM
+MISSING 2a8a4c7f2a38e0ab0771f59a9a0f1ee4 bios/MacIIx.ROM
+MISSING 409d8b9a04db15b7bfbbd5fcb931bf2e bios/mac128k.zip
+MISSING 9d09a9a51c9ef3ea5719e19db22e7901 bios/mackbd_m0110.zip
+MISSING 9d09a9a51c9ef3ea5719e19db22e7901 bios/mackbd_m0120.zip
+MISSING ab4e461833e98ef7106f24455a07769d bios/mac512k.zip
+MISSING f4b06da98500df0747a764dfbf1862b9 bios/macplus.zip
+MISSING 9fb38bdcc0d53d9d380897ee53dc1322 bios/macse.zip
+MISSING c229bb677cb41b84b780c9e38a09173e bios/macclasc.zip
+MISSING 2a8a4c7f2a38e0ab0771f59a9a0f1ee4 bios/mac2fdhd.zip
+MISSING 1bf16eefb23a1bea02f031f1ef1de528 bios/nb_48gc.zip
+MISSING 2a8a4c7f2a38e0ab0771f59a9a0f1ee4 bios/maciix.zip
+MISSING fa16d49527c4e6e9c0d9e46904133d39 bios/maclc3.zip
+MISSING 9e8ea1552153c5e0f895e247e7d3ec1c bios/mackbd_m0110a.zip
+MISSING 93155ac7bad0fec36837252bb1e408f2 bios/nb_image.zip
+MISSING 5035d321c5d5fa1eab5ce6bf986676e4 bios/egret.zip
+MISSING 862b8598cecdbc934658c4cb599a8142 bios/adbmodem.zip
+MISSING - bios/macos3.img
+MISSING - bios/macos608.img
+MISSING - bios/macos701.img
+MISSING - bios/macos75.img
+MISSING - bios/mac608.chd
+MISSING - bios/mac701.chd
+MISSING - bios/mac755.chd
+> msx
+UNTESTED 364a1a579fe5cb8dba54519bcfcdac0d bios/MSX.ROM
+> msx2+
+UNTESTED 847cc025ffae665487940ff2639540e5 bios/MSX2P.ROM
+> naomi
+MISSING eb4099aeb42ef089cfe94f8fe95e51f6 bios/dc/naomi.zip
+> naomi2
+MISSING 960ece0dc22a7c5ff81c812a2993e7cc bios/dc/naomi2.zip
+> nds
+UNTESTED 94bc5094607c5e6598d50472c52f27f2 bios/firmware.bin
+MISSING 559dae4ea78eb9d67702c56c1d791e81 bios/dsi_bios7.bin
+MISSING 87b665fce118f76251271c3732532777 bios/dsi_bios9.bin
+MISSING 74f23348012d7b3e1cc216c47192ffeb bios/dsi_firmware.bin
+MISSING d71edf897ddd06bf335feeb68edeb272 bios/dsi_nand.bin
+> neogeocd
+MISSING 8834880c33164ccbe6476b559f3e37de bios/neocd/neocd_f.rom
+MISSING 043d76d5f0ef836500700c34faef774d bios/neocd/neocd_sf.rom
+MISSING de3cf45d227ad44645b22aa83b49f450 bios/neocd/neocd_t.rom
+MISSING f6325a33c6d63ea4b9162a3fa8c32727 bios/neocd/neocd_st.rom
+MISSING 11526d58d4c524daef7d5d677dc6b004 bios/neocd/neocd_z.rom
+MISSING 971ee8a36fb72da57aed01758f0a37f5 bios/neocd/neocd_sz.rom
+MISSING 5c2366f25ff92d71788468ca492ebeca bios/neocd/front-sp1.bin
+MISSING 122aee210324c72e8a11116e6ef9c0d0 bios/neocd/top-sp1.bin
+MISSING f39572af7584cb5b3f70ae8cc848aba2 bios/neocd/neocd.bin
+MISSING 08ca8b2dba6662e8024f9e789711c6fc bios/neocd/uni-bioscd.rom
+> pc88
+MISSING 4f984e04a99d56c4cfe36115415d6eb8 bios/quasi88/N88.ROM
+MISSING 793f86784e5608352a5d7f03f03e0858 bios/quasi88/N88SUB.ROM
+MISSING 2ff07b8769367321128e03924af668a0 bios/quasi88/N88N.ROM
+MISSING d81c6d5d7ad1a4bbbd6ae22a01257603 bios/quasi88/N88KNJ1.ROM
+MISSING d675a2ca186c6efcd6277b835de4c7e5 bios/quasi88/N88EXT0.ROM
+MISSING e844534dfe5744b381444dbe61ef1b66 bios/quasi88/N88EXT1.ROM
+MISSING 6548fa45061274dee1ea8ae1e9e93910 bios/quasi88/N88EXT2.ROM
+MISSING fc4b76a402ba501e6ba6de4b3e8b4273 bios/quasi88/N88EXT3.ROM
+> pc98
+MISSING e246140dec5124c5e404869a84caefce bios/np2kai/BIOS.ROM
+MISSING 2af6179d7de4893ea0b705c00e9a98d6 bios/np2kai/FONT.ROM
+MISSING caf90f22197aed6f14c471c21e64658d bios/np2kai/SOUND.ROM
+MISSING e9fc3890963b12cf15d0a2eea5815b72 bios/np2kai/ITF.ROM
+MISSING 7da1e5b7c482d4108d22a5b09631d967 bios/np2kai/font.bmp
+> scv
+MISSING 635a978fd40db9a18ee44eff449fc126 bios/upd7801g.s01
+> sgb
+MISSING d574d4f9c12f305074798f54c091a8b4 bios/sgb_boot.bin
+MISSING e0430bca9925fb9882148fd2dc2418c1 bios/sgb2_boot.bin
+MISSING b15ddb15721c657d82c5bab6db982ee9 bios/SGB1.sfc
+MISSING 8ecd73eb4edf7ed7e81aef1be80031d5 bios/SGB2.sfc
+> socrates
+MISSING 31c29c57e3d3e6788ba5817eaaa8b17a bios/socrates.zip
+> ti99
+MISSING 0dcb961cf84c69b2171a565427c7c6c7 bios/ti99_4a.zip
+MISSING 206daf498ac5d0141de1d47d38afd899 bios/ti99_speech.zip
+> tutor
+MISSING 5770834c10946ac2c3617504ba530884 bios/tutor.zip
+> vectrex
+MISSING a9c238473229912eb757ff3dfe6f4631 bios/vectrex.zip
+> vgmplay
+MISSING 108b113a596e800a02fece73f784eeb0 bios/qsound.zip
+MISSING 96c11a92992bdff7f7e9d98a52621e1f bios/ym2413.zip
+MISSING 8740932cda05e518a9955f1d08d6786f bios/ym2608.zip
+> vsmile
+MISSING 11e59253c578c8f16ea2375ec398e4e9 bios/vsmile.zip
+> xegs
+MISSING 42cbd989802c17d0ac3731d33270d835 bios/xegs.zip

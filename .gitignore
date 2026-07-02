@@ -1,0 +1,16 @@
+.7z
+.DS_Store
+*.png
+*.zip
+audit_logs/
+HANDOFF.*
+Old/
+PNGS/
+README_old*
+Rom Audit User Manual/
+rom_audit_user_manual.docx
+Rom Audit User Manual V1.4.3.docx
+romset_auditor/
+Tests/
+venv/
+WIP/
