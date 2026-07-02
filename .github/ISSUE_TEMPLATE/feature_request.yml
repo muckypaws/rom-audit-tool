@@ -1,0 +1,44 @@
+name: Feature request
+description: Suggest an idea, new platform, or enhancement for ROM Audit Tool
+title: "[Feature]: "
+labels: ["enhancement", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the suggestion! The more concrete the use case, the
+        easier this is to prioritise — "I want X so I can do Y" is far
+        more actionable than "it would be nice if X existed."
+
+  - type: dropdown
+    id: category
+    attributes:
+      label: What kind of request is this?
+      options:
+        - New platform support (e.g. a system not currently covered)
+        - New detection heuristic (e.g. catching a failure mode not currently caught)
+        - Workflow / CLI improvement
+        - Reporting / output format
+        - Documentation
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this solve?
+      description: >-
+        Describe the situation you hit that made you want this.
+        What were you trying to do, and where did the current tool
+        fall short?
+      placeholder: |
+        I'm auditing a 4000-ROM MAME set and want to flag ROMs that pass
+        launch detection but produce a suspiciously short playtime, since
+        that often means a rom that boots into an error screen but doesn't
+        crash.
+    validations:
+      required: true
+
+  - type: textarea
+    id:
