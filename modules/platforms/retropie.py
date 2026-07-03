@@ -155,11 +155,43 @@ class RetroPiePlatform(Platform):
         log(f"RetroPie home: {self._retropie_home}")
 
     def _detect_version(self) -> str:
+        """
+        Detect the installed RetroPie version.
+
+        Reads /opt/retropie/VERSION which contains a version string
+        such as "4.8.8". This file is only written after the RetroPie
+        setup script (retropie_setup.sh) has been run at least once —
+        on a stock/imaged system that's never had the setup script
+        launched, it won't exist yet.
+
+        Falls back to the RetroPie-Setup git commit hash if VERSION
+        is missing, since that's present on any standard install.
+
+        Returns:
+            Version string e.g. "4.8.8", a git hash e.g. "git-6e83a7d5",
+            or "unknown" if neither is available.
+        """
+        version_file = "/opt/retropie/VERSION"
         try:
-            with open("/opt/retropie/VERSION", 'r') as f:
-                return f.read().strip()
+            with open(version_file, 'r') as f:
+                v = f.read().strip()
+                if v:
+                    return v
         except Exception:
-            return "unknown"
+            pass
+
+        try:
+            import subprocess
+            result = subprocess.run(
+                ['git', '-C', '/home/pi/RetroPie-Setup', 'log', '-1', '--pretty=format:%h'],
+                capture_output=True, text=True, timeout=3
+            )
+            if result.returncode == 0 and result.stdout.strip():
+                return f"git-{result.stdout.strip()}"
+        except Exception:
+            pass
+
+        return "unknown"
 
     def _detect_retropie_home(self) -> str:
         """
