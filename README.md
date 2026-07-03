@@ -4,7 +4,7 @@ A multi-platform ROM compatibility testing utility for retro gaming systems.
 Automatically launches each ROM through the native emulator, detects success
 or failure, and records results to a CSV file for review and remediation.
 
-**Version 1.4.3** (unreleased) — Batocera · RetroPie · Recalbox
+**Version 1.4.3** (Initial Public Release) — Batocera · RetroPie · Recalbox
 
 **→ [QUICKSTART.md](QUICKSTART.md)** — new here? Start here. Up and running in ten minutes.
 
