@@ -238,8 +238,8 @@ class Dashboard:
                 else f" {red}✗{reset}" if checksum_result == 'MISMATCH'
                 else ''
             )
-            cs_right = f"{algo.upper()}: {hsh}{result_mark}"
-            #    if len(hsh) > 16 else f"{algo.upper()}: {hsh}{result_mark}"
+            cs_right = f"{algo.upper()}: {hsh[:16]}…{result_mark}" \
+                if len(hsh) > 16 else f"{algo.upper()}: {hsh}{result_mark}"
             # Strip ANSI from left side for length calculation
             status_left_plain = f"Status : {status}"
             status_line = (
@@ -269,7 +269,7 @@ class Dashboard:
                 f"{cyan}{'IMPERFECT:':<14}{counts.get('IMPERFECT', 0):<8}{reset}"
                 f"{magenta}{'NEEDS REVIEW:':<14}{counts.get('NEEDS REVIEW', 0):<8}{reset}"
             ),
-            f"REMAINING: {remaining}",
+            f"{'REMAINING:':<14}{remaining:<8}",
             magenta + "-" * width + reset,
             timing_line,
             magenta + "=" * width + reset,
