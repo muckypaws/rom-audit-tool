@@ -36,7 +36,7 @@ from collections import defaultdict
 OK_STATUSES   = {'OK', 'FIXED'}
 PART_STATUSES = {'IMPERFECT'}   # Playable but not arcade-perfect
 BAD_STATUSES  = {'ERROR', 'GENUINE ERROR', 'TIMEOUT', 'LAUNCHED',
-                 'MISSING BIOS', 'MISSING CORE'}
+                 'MISSING BIOS', 'MISSING CORE', 'NO COMBINATIONS'}
 
 
 def load_csv(path: str) -> dict[str, dict]:

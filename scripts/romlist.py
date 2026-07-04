@@ -9,6 +9,7 @@ the full table format of filter.py.
 Output format varies by status:
     ERROR / GENUINE ERROR  →  "romname", "error note"
     MISSING BIOS           →  "romname", "MISSING BIOS"
+    NO COMBINATIONS        →  "romname", "no alternative cores note"
     OK / FIXED             →  "romname", tested_at date
     TIMEOUT / IMPERFECT    →  "romname", status
 
@@ -48,10 +49,12 @@ BIOS_STATUSES      = {'MISSING BIOS'}
 MISSING_CORE_STATUSES = {'MISSING CORE'}
 IMPERFECT_STATUSES = {'IMPERFECT'}
 NEEDS_REVIEW_STATUSES = {'NEEDS REVIEW'}
+NO_COMBINATIONS_STATUSES = {'NO COMBINATIONS'}
 OK_STATUSES      = {'OK', 'FIXED'}
 ALL_STATUSES     = (
     ERROR_STATUSES | GENUINE_STATUSES | BIOS_STATUSES |
     MISSING_CORE_STATUSES | IMPERFECT_STATUSES | NEEDS_REVIEW_STATUSES |
+    NO_COMBINATIONS_STATUSES |
     OK_STATUSES | {'TIMEOUT', 'MISSING CORE'}
 )
 
@@ -94,7 +97,7 @@ def format_row(row: dict) -> str:
     # prefix: "filename", [md5:hash],   — or just  "filename",  if no checksum
     prefix = f'"{romname}", [{checksum}],' if checksum else f'"{romname}",'
 
-    if status in ERROR_STATUSES | GENUINE_STATUSES:
+    if status in ERROR_STATUSES | GENUINE_STATUSES | NO_COMBINATIONS_STATUSES:
         detail = f'"{notes}"' if notes else f'"{status}"'
         return f'{prefix} {detail}'
 
@@ -213,6 +216,14 @@ def main() -> None:
         help='List MISSING CORE ROMs'
     )
     group.add_argument(
+        '--no-combinations',
+        action='store_true',
+        dest='no_combinations',
+        help='List NO COMBINATIONS ROMs (autofix had no alternative '
+             'cores installed to even attempt a fix — install more '
+             'cores for that system, not a confirmed broken ROM)'
+    )
+    group.add_argument(
         '--imperfect',
         action='store_true',
         help='List IMPERFECT ROMs (load but have known accuracy issues)'
@@ -269,6 +280,8 @@ def main() -> None:
         statuses = BIOS_STATUSES
     elif args.missing_core:
         statuses = MISSING_CORE_STATUSES
+    elif args.no_combinations:
+        statuses = NO_COMBINATIONS_STATUSES
     elif args.imperfect:
         statuses = IMPERFECT_STATUSES
     elif args.needs_review:
@@ -295,6 +308,7 @@ def main() -> None:
         'genuine errors' if args.genuine else
         'BIOS errors' if args.bios else
         'missing core' if args.missing_core else
+        'no combinations' if args.no_combinations else
         'imperfect' if args.imperfect else
         'needs review' if args.needs_review else
         'OK' if args.ok else

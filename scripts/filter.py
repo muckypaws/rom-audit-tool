@@ -189,7 +189,8 @@ def main() -> None:
         metavar='STATUS',
         help=(
             'Filter by status (repeatable: --status ERROR --status "GENUINE ERROR")\n'
-            'Valid values: OK, FIXED, ERROR, GENUINE ERROR, TIMEOUT,\n'
+            'Valid values: OK, FIXED, IMPERFECT, NEEDS REVIEW, ERROR,\n'
+            '              GENUINE ERROR, NO COMBINATIONS, TIMEOUT,\n'
             '              LAUNCHED, MISSING CORE, MISSING BIOS,\n'
             '              QUARANTINED, DELETED'
         )
