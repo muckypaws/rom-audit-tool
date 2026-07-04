@@ -20,6 +20,7 @@ requires minimal changes to support RetroPie.
 from __future__ import annotations   # Python 3.9 compatibility
 
 import os
+import re
 import time
 import subprocess
 import shlex
@@ -1117,9 +1118,12 @@ class RetroPiePlatform(Platform):
              reliable for libretro/RetroArch games. Requires
              network_cmd_enable=true in retroarch.cfg, which
              pre_audit() sets automatically.
-          2. PIL framebuffer read from /dev/fb0 — works for standalone
-             emulators that write directly to the framebuffer.
-          3. Returns False — screenshot not available for this game.
+          2. fbgrab — standalone binary, works for advmame and other
+             emulators that render directly to the framebuffer. No
+             Python dependencies required.
+          3. PIL framebuffer read from /dev/fb0 — fallback if fbgrab
+             is not installed.
+          4. Returns False — screenshot not available for this game.
 
         Args:
             dest_path: Full path for the output PNG file.
@@ -1176,7 +1180,26 @@ class RetroPiePlatform(Platform):
             pass
 
         # ------------------------------------------------------------------
-        # Method 2: PIL framebuffer — reads /dev/fb0 directly
+        # Method 2: fbgrab — standalone framebuffer capture binary.
+        # Available on most Raspberry Pi systems without any Python
+        # dependencies. Works for advmame and other standalone emulators
+        # that render directly to the framebuffer rather than RetroArch.
+        # ------------------------------------------------------------------
+        try:
+            result = subprocess.run(
+                ['fbgrab', dest_path],
+                capture_output=True, timeout=5
+            )
+            if result.returncode == 0 and os.path.exists(dest_path):
+                log("  Screenshot: captured via fbgrab")
+                return True
+        except FileNotFoundError:
+            pass   # fbgrab not installed — try next method
+        except Exception as e:
+            log(f"  Screenshot: fbgrab failed — {e}")
+
+        # ------------------------------------------------------------------
+        # Method 3: PIL framebuffer — reads /dev/fb0 directly
         # Works for standalone emulators (mupen64plus, amiberry etc.)
         # that render to the framebuffer rather than through RetroArch.
         # Reads 16-bit RGB565 as reported by fbset.
@@ -1284,33 +1307,93 @@ class RetroPiePlatform(Platform):
 
     def _enable_retroarch_network_cmd(self) -> None:
         """
-        Ensure network_cmd_enable = "true" in the global retroarch.cfg.
+        Ensure network_cmd_enable = "true" is active for RetroArch launches.
 
-        Must be called before RetroArch launches — the setting is read
-        once at startup and cannot be changed mid-game. Safe to call
-        multiple times; no-op if already enabled.
+        Two writes for belt-and-braces coverage:
+        1. The global retroarch.cfg — persistent, survives reboots.
+        2. /dev/shm/retroarch.cfg — used as --appendconfig on every
+           launch, which OVERRIDES per-system configs. This is the
+           critical one: RetroArch is launched with
+           --config /opt/retropie/configs/{system}/retroarch.cfg
+           (per-system), not the global. Per-system configs take
+           precedence over the global, so writing only to the global
+           has no effect when a per-system config exists and doesn't
+           set network_cmd_enable. Writing to /dev/shm ensures the
+           setting is active regardless of which config chain is loaded.
         """
+        # 1. Write to global config for persistence
         cfg_path = '/opt/retropie/configs/all/retroarch.cfg'
-        if not os.path.exists(cfg_path):
-            return
+        if os.path.exists(cfg_path):
+            try:
+                with open(cfg_path, 'r') as f:
+                    content = f.read()
+
+                changed = False
+                changes = []
+
+                if 'network_cmd_enable = "true"' not in content:
+                    if '# network_cmd_enable' in content:
+                        content = re.sub(
+                            r'#\s*network_cmd_enable\s*=\s*\S+',
+                            'network_cmd_enable = "true"',
+                            content
+                        )
+                    elif 'network_cmd_enable = "false"' in content:
+                        content = content.replace(
+                            'network_cmd_enable = "false"',
+                            'network_cmd_enable = "true"'
+                        )
+                    else:
+                        content += '\nnetwork_cmd_enable = "true"\n'
+                    changed = True
+                    changes.append('network_cmd_enable = "true"')
+
+                if 'network_cmd_port = "55355"' not in content:
+                    if '# network_cmd_port' in content:
+                        content = re.sub(
+                            r'#\s*network_cmd_port\s*=\s*\S+',
+                            'network_cmd_port = "55355"',
+                            content
+                        )
+                    elif 'network_cmd_port' not in content:
+                        content += '\nnetwork_cmd_port = "55355"\n'
+                    changed = True
+                    changes.append('network_cmd_port = "55355"')
+
+                if changed:
+                    with open(cfg_path, 'w') as f:
+                        f.write(content)
+                    log(f"  RetroArch global config updated: {cfg_path}")
+                    for change in changes:
+                        log(f"    Set: {change}")
+                else:
+                    log("  RetroArch global config: network commands already enabled")
+            except Exception as e:
+                log(f"  Warning: could not update {cfg_path}: {e}")
+
+        # 2. Write to /dev/shm/retroarch.cfg (appendconfig) — this
+        # overrides per-system configs and is the reliable path.
         try:
-            with open(cfg_path, 'r') as f:
-                content = f.read()
-            if 'network_cmd_enable = "true"' in content:
-                return   # Already enabled
-            # Replace false with true, or add the setting
-            if 'network_cmd_enable' in content:
-                content = content.replace(
-                    'network_cmd_enable = "false"',
-                    'network_cmd_enable = "true"'
-                )
-            else:
-                content += '\nnetwork_cmd_enable = "true"\n'
-            with open(cfg_path, 'w') as f:
-                f.write(content)
-            log("  RetroArch network commands enabled for screenshot capture")
+            shm_cfg = '/dev/shm/retroarch.cfg'
+            existing = ''
+            if os.path.exists(shm_cfg):
+                with open(shm_cfg, 'r') as f:
+                    existing = f.read()
+            additions = []
+            if 'network_cmd_enable' not in existing:
+                additions.append('network_cmd_enable = "true"')
+            if 'network_cmd_port' not in existing:
+                additions.append('network_cmd_port = "55355"')
+            if additions:
+                with open(shm_cfg, 'a') as f:
+                    f.write('\n' + '\n'.join(additions) + '\n')
+                log(f"  RetroArch appendconfig updated: {shm_cfg}")
+                for a in additions:
+                    log(f"    Set: {a}")
+                log("  Network commands will be active from the first "
+                    "ROM launch — no reboot needed.")
         except Exception as e:
-            log(f"  Warning: could not enable RetroArch network commands: {e}")
+            log(f"  Warning: could not update /dev/shm/retroarch.cfg: {e}")
 
     def post_audit(self) -> None:
         """
