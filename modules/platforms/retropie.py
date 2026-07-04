@@ -53,14 +53,23 @@ class RetroPiePlatform(Platform):
     # ------------------------------------------------------------------
 
     LAUNCH_INDICATORS = [
-        # Core loaded from disk — appears early in RetroArch verbose output
+        # RetroArch / libretro — core loaded from disk
         "[INFO] Loading dynamic libretro core from:",
-        # DRM display found — confirms video initialised
+        # RetroArch — DRM display found, video initialised
         "[INFO] [DRM]: Found",
-        # GL context confirmed
+        # RetroArch — GL context confirmed
         "[INFO] [GL]: Found GL context:",
-        # Video display server
+        # RetroArch — video display server
         "[INFO] [Video]: Found display server:",
+        # AdvanceMAME — ROM found and loaded
+        "rom/",                 # advmame logs "Loading rom/romname"
+        "game/",                # advmame logs "Loading game/romname"
+        # AdvanceMAME — video mode set, display initialised
+        "mame: starting",       # advmame startup message
+        "Starting game",        # advmame ROM launch
+        # Generic standalone emulators — process confirmed alive
+        # (advmame, amiberry, etc. may not log anything we can intercept
+        # before proc.poll() confirms the process is still running)
     ]
 
     ERROR_MARKERS = [
@@ -124,10 +133,21 @@ class RetroPiePlatform(Platform):
         ('lr-fba',         'lr-fba',         'fba_libretro.so'),
         ('lr-fbalpha2012', 'lr-fbalpha2012', 'fbalpha2012_libretro.so'),
         ('lr-fbneo',       'lr-fbneo',       'fbneo_libretro.so'),
+        # NeoGeo CD variant — separate core entry but same fbneo .so
+        ('lr-fbneo-neocd', 'lr-fbneo',       'fbneo_libretro.so'),
     ]
 
+    # The arcade system on a fresh RetroPie install defaults to advmame
+    # and exposes all 8 emulators shown in the runcommand menu. Autofix
+    # tries all libretro cores (both MAME and FBA families). advmame
+    # itself is not included as an autofix target — it uses a completely
+    # different launch path (no -L flag, no retroarch) and would need
+    # its own write_mame_cfg variant. If all libretro cores fail and
+    # advmame is worth trying, that's a manual runcommand selection.
+    ARCADE_CORE_COMBINATIONS = MAME_CORE_COMBINATIONS + FBA_CORE_COMBINATIONS
+
     SYSTEM_CORE_COMBINATIONS = {
-        'arcade':       MAME_CORE_COMBINATIONS,
+        'arcade':       ARCADE_CORE_COMBINATIONS,
         'mame-libretro':MAME_CORE_COMBINATIONS,
         'fba':          FBA_CORE_COMBINATIONS,
     }
@@ -151,22 +171,23 @@ class RetroPiePlatform(Platform):
         self._screen_width, self._screen_height = (
             self._detect_screen_resolution()
         )
+        self._retroarch_verbose = self._probe_retroarch_verbose()
         log(f"RetroPie v{self._version} detected")
         log(f"RetroPie home: {self._retropie_home}")
+        if not self._retroarch_verbose:
+            log("  Note: this RetroArch build does not support --verbose "
+                "— launch indicators will rely on process detection only")
 
     def _detect_version(self) -> str:
         """
         Detect the installed RetroPie version.
-
         Reads /opt/retropie/VERSION which contains a version string
         such as "4.8.8". This file is only written after the RetroPie
         setup script (retropie_setup.sh) has been run at least once —
         on a stock/imaged system that's never had the setup script
         launched, it won't exist yet.
-
         Falls back to the RetroPie-Setup git commit hash if VERSION
         is missing, since that's present on any standard install.
-
         Returns:
             Version string e.g. "4.8.8", a git hash e.g. "git-6e83a7d5",
             or "unknown" if neither is available.
@@ -179,19 +200,48 @@ class RetroPiePlatform(Platform):
                     return v
         except Exception:
             pass
-
         try:
             import subprocess
             result = subprocess.run(
-                ['git', '-C', '/home/pi/RetroPie-Setup', 'log', '-1', '--pretty=format:%h'],
+                ['git', '-C', '/home/pi/RetroPie-Setup', 'log', '-1',
+                 '--pretty=format:%h'],
                 capture_output=True, text=True, timeout=3
             )
             if result.returncode == 0 and result.stdout.strip():
                 return f"git-{result.stdout.strip()}"
         except Exception:
             pass
-
         return "unknown"
+
+    def _probe_retroarch_verbose(self) -> bool:
+        """
+        Check whether this RetroArch binary accepts --verbose.
+
+        Older RetroArch builds (pre-1.7 era, as shipped on some
+        RetroPie 2022 images) reject it with 'Unknown command line
+        option' — causing every launch to fail with that error in
+        stderr before the game ever starts. Probing once at startup
+        is cheaper than discovering this mid-audit on every ROM.
+
+        Runs 'retroarch --help' and checks the output for '--verbose'.
+        Falls back to True (assume supported) if the binary can't be
+        found or the probe itself fails — that way a probe failure
+        doesn't silently disable useful log output on builds that
+        do support it.
+        """
+        import subprocess
+        retroarch = '/opt/retropie/emulators/retroarch/bin/retroarch'
+        if not os.path.exists(retroarch):
+            return True   # not found — assume modern, fail gracefully later
+        try:
+            result = subprocess.run(
+                [retroarch, '--help'],
+                capture_output=True, text=True, timeout=5
+            )
+            combined = result.stdout + result.stderr
+            return '--verbose' in combined
+        except Exception:
+            return True   # probe failed — assume supported
 
     def _detect_retropie_home(self) -> str:
         """
@@ -363,9 +413,15 @@ class RetroPiePlatform(Platform):
         without being excessive for a system this lightweight.
         """
         GAMEANDWATCH_DISPLAY_TIME = 10
+        RETROPIE_DEFAULT_DISPLAY_TIME = 5  # Longer than the base 3s —
+            # RetroArch on RetroPie needs extra time to fully initialise
+            # after the launch indicator fires. The indicator can appear
+            # while RetroArch is still mid-startup on this platform, so
+            # the base 3s default (which is fine for Batocera's
+            # emulatorlauncher wrapper) is too tight here.
         if system == 'gameandwatch':
             return GAMEANDWATCH_DISPLAY_TIME
-        return 5
+        return RETROPIE_DEFAULT_DISPLAY_TIME
 
     @property
     def non_fatal_post_launch_markers(self) -> list[str]:
@@ -681,21 +737,29 @@ class RetroPiePlatform(Platform):
                 idx = parts.index('-L')
                 parts[idx + 1] = core_path
 
-            # Add verbose output for launch indicator detection
-            if '--verbose' not in parts:
+            # Add verbose output for launch indicator detection —
+            # only for RetroArch commands, and only if this build
+            # supports the flag. advmame, amiberry, and other standalone
+            # emulators don't accept --verbose and will fail with
+            # "Unknown command line option" if it's blindly appended.
+            is_retroarch = any(
+                'retroarch' in p.lower() for p in parts[:2]
+            )
+            if is_retroarch and self._retroarch_verbose \
+                    and '--verbose' not in parts:
                 parts.append('--verbose')
-                # Include appendconfig if it exists
                 if os.path.exists('/dev/shm/retroarch.cfg'):
                     parts.extend(['--appendconfig', '/dev/shm/retroarch.cfg'])
-                return parts
+            return parts
 
 
         # Fallback — direct RetroArch with no specific core
         log(f"  Warning: no emulators.cfg found for {system}, using fallback")
+        verbose = ['--verbose'] if self._retroarch_verbose else []
         cmd = [
             "/opt/retropie/emulators/retroarch/bin/retroarch",
             "--config", f"/opt/retropie/configs/{system}/retroarch.cfg",
-            "--verbose",
+            *verbose,
             rom
         ]
         if core_path:
@@ -703,7 +767,7 @@ class RetroPiePlatform(Platform):
                 "/opt/retropie/emulators/retroarch/bin/retroarch",
                 "-L", core_path,
                 "--config", f"/opt/retropie/configs/{system}/retroarch.cfg",
-                "--verbose",
+                *verbose,
                 rom
             ]
         return cmd
@@ -842,6 +906,7 @@ class RetroPiePlatform(Platform):
         Log which core combinations are available for autofix on
         this RetroPie installation.
         """
+        log("=" * 60)
         log("RetroPie autofix core availability:")
         for system, combinations in self.SYSTEM_CORE_COMBINATIONS.items():
             _, current_cmd = self._parse_emulators_cfg(system)
@@ -866,6 +931,9 @@ class RetroPiePlatform(Platform):
                 if not alternatives:
                     log(f"  [{system}] No alternative cores — "
                         f"install more via RetroPie-Setup")
+            else:
+                log(f"  [{system}] No cores installed")
+        log("=" * 60)
 
     def _remove_stale_mame_cfgs(
         self,
