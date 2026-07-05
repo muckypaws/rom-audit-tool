@@ -156,6 +156,11 @@ class RetroPiePlatform(Platform):
     # Lines that look like errors but are non-fatal MAME 2003 warnings
     NON_FATAL_MARKERS = [
         "cpunum_get_localtime() called for invalid cpu num",
+        # lr-caprice32 logs this when the game sets a non-standard CRTC
+        # screen size — purely informational geometry output, game runs fine
+        "[libretro-cap32]: Got size:",
+        # RetroArch cloud sync not configured — harmless on local installs
+        "Couldn't find any cloud sync driver",
     ]
 
     LIBRETRO_CORES_PATH = "/opt/retropie/libretrocores"
@@ -396,6 +401,40 @@ class RetroPiePlatform(Platform):
         """
         return ""
 
+    def get_configured_core(self, system: str, romname: str) -> str:
+        """
+        Resolve which libretro core this ROM will actually launch with.
+
+        Reads emulators.cfg the same way build_launch_cmd() does, to
+        detect whether the resolved core is in UNVERIFIED_CORES (e.g.
+        fbneo). When it is, prepare_screenshot_path() forces a
+        verification screenshot and post_process_result() routes the
+        result through verify_unverified_core() — the same FBNeo
+        grey-screen masking detection that exists on Batocera.
+
+        Confirmed needed on RetroPie: Coleco ROMs launched via lr-fbneo
+        (the default FBNeo core) showed the familiar "Romset is unknown"
+        grey error screen and reported plain OK with no flag, because the
+        base class returns '' and UNVERIFIED_CORES was never consulted.
+
+        Returns:
+            Core display name e.g. 'lr-fbneo', or '' if not determinable.
+        """
+        try:
+            core_name, _ = self._parse_emulators_cfg(system)
+            # core_name is the emulators.cfg key e.g. 'lr-fbneo'
+            # Map to the bare core name that UNVERIFIED_CORES uses
+            CORE_NAME_MAP = {
+                'lr-fbneo':       'fbneo',
+                'lr-fbneo-cv':    'fbneo',   # ColecoVision variant
+                'lr-fbneo-neocd': 'fbneo',   # NeoGeo CD variant
+                'lr-fba':         'fbneo',
+                'lr-fbalpha2012': 'fbneo',
+            }
+            return CORE_NAME_MAP.get(core_name, core_name or '')
+        except Exception:
+            return ''
+
     def get_display_time(self, system: str) -> float:
         """
         Seconds to display a launched game before killing it.
@@ -427,12 +466,10 @@ class RetroPiePlatform(Platform):
     @property
     def non_fatal_post_launch_markers(self) -> list[str]:
         """
-        Strings that look like errors but are non-fatal MAME 2003 warnings.
+        Strings that look like errors but are non-fatal warnings.
         Games continue running correctly despite these appearing in the log.
         """
-        return [
-            "cpunum_get_localtime() called for invalid cpu num",
-        ]
+        return self.NON_FATAL_MARKERS
 
     # ------------------------------------------------------------------
     # Log analysis properties
@@ -665,6 +702,23 @@ class RetroPiePlatform(Platform):
             f'video_fullscreen_x = "{self._screen_width}"\n',
             f'video_fullscreen_y = "{self._screen_height}"\n',
             'cache_directory = "/tmp/retroarch"\n',
+            # Network command interface — required for screenshot capture
+            # via UDP. Written here rather than relying on the global
+            # retroarch.cfg because _write_appendconfig() overwrites
+            # /dev/shm/retroarch.cfg on every ROM launch (erasing anything
+            # _enable_retroarch_network_cmd() wrote in pre_audit).
+            # --appendconfig overrides per-system configs, so this is the
+            # only reliable place to guarantee the setting is active.
+            'network_cmd_enable = "true"\n',
+            'network_cmd_port = "55355"\n',
+            # Force gl video driver — the SCREENSHOT network command only
+            # works with gl. RetroArch 1.19.1 on fresh RetroPie installs
+            # defaults to a different driver when video_driver is commented
+            # out in the global config, causing SCREENSHOT to silently fail.
+            # Confirmed: working builds have video_driver = "gl" explicitly
+            # set; fresh builds have it commented out.
+            'video_driver = "gl"\n',
+            'video_gpu_screenshot = "false"\n',
         ]
         try:
             with open('/dev/shm/retroarch.cfg', 'w') as f:
@@ -1176,6 +1230,31 @@ class RetroPiePlatform(Platform):
                 shutil.move(new_file, dest_path)
                 log("  Screenshot: captured via RetroArch")
                 return True
+            else:
+                # UDP command was sent but RetroArch produced no file.
+                # This can happen when:
+                #   1. video_driver is not set to "gl" — RetroArch 1.19.1+
+                #      defaults to a different driver on fresh installs
+                #      (video_driver commented out in retroarch.cfg) and
+                #      the SCREENSHOT command silently fails for non-gl
+                #      drivers. Confirmed fix: uncomment/set
+                #      video_driver = "gl" in
+                #      /opt/retropie/configs/all/retroarch.cfg
+                #   2. The core option configuration doesn't match the
+                #      ROM set — e.g. lr-atari800 showing a blank blue
+                #      screen because atari800_system is set to
+                #      "400/800 (OS B)" instead of "XL/XE (64K)". The
+                #      emulator runs but the ROM never actually loads,
+                #      so there is nothing meaningful to capture.
+                #      Check /opt/retropie/configs/all/retroarch-core-options.cfg
+                log("  INFO: RetroArch received SCREENSHOT command "
+                    "(port 55355 active) but produced no file. "
+                    "Possible causes: (1) video_driver not set to 'gl' "
+                    "in /opt/retropie/configs/all/retroarch.cfg — "
+                    "uncomment/set video_driver = \"gl\" to fix; "
+                    "(2) core option mismatch preventing ROM from loading "
+                    "(e.g. atari800_system wrong for your ROM set — "
+                    "check retroarch-core-options.cfg).")
         except Exception:
             pass
 
@@ -1394,6 +1473,47 @@ class RetroPiePlatform(Platform):
                     "ROM launch — no reboot needed.")
         except Exception as e:
             log(f"  Warning: could not update /dev/shm/retroarch.cfg: {e}")
+
+        # 3. Patch any per-system retroarch.cfg that explicitly sets
+        # network_cmd_enable = false or has it commented out — per-system
+        # configs override both the global and appendconfig for settings
+        # they explicitly define. Only patch files that exist and actively
+        # disable or comment out the setting; leave others untouched.
+        configs_root = '/opt/retropie/configs'
+        if os.path.isdir(configs_root):
+            for system_dir in os.listdir(configs_root):
+                sys_cfg = os.path.join(
+                    configs_root, system_dir, 'retroarch.cfg'
+                )
+                if not os.path.exists(sys_cfg):
+                    continue
+                try:
+                    with open(sys_cfg, 'r') as f:
+                        content = f.read()
+                    # Only touch files that actively block the setting
+                    needs_fix = (
+                        'network_cmd_enable = "false"' in content
+                        or (
+                            '# network_cmd_enable' in content
+                            and 'network_cmd_enable = "true"' not in content
+                        )
+                    )
+                    if not needs_fix:
+                        continue
+                    content = re.sub(
+                        r'#\s*network_cmd_enable\s*=\s*\S+',
+                        'network_cmd_enable = "true"',
+                        content
+                    )
+                    content = content.replace(
+                        'network_cmd_enable = "false"',
+                        'network_cmd_enable = "true"'
+                    )
+                    with open(sys_cfg, 'w') as f:
+                        f.write(content)
+                    log(f"  Fixed network_cmd_enable in [{system_dir}] config")
+                except Exception as e:
+                    log(f"  Warning: could not patch [{system_dir}] config: {e}")
 
     def post_audit(self) -> None:
         """
