@@ -111,7 +111,7 @@ VERSION = "1.4.3"
 
 # Systems requiring extended launch timeout due to tape, disk or slow
 # emulator startup. Values are absolute seconds, overriding MAX_WAIT.
-SLOW_SYSTEM_TIMEOUTS: dict[str, int] = {}
+SLOW_SYSTEM_TIMEOUTS = {}  # type: dict[str, int]
 # System-specific launch timeouts are now defined in each platform's
 # get_launch_timeout() method. This dict is kept as a passthrough for
 # any legacy callers; platform.get_launch_timeout(system) is the
@@ -851,7 +851,7 @@ Recommended for SSH use (prevents session drop from killing the audit):
         # discover_roms()'s sorted output, never reordered afterward), so
         # tracking transitions while iterating the flat list below is
         # sufficient — no need for a nested per-system structure.
-        system_rom_counts: dict[str, int] = {}
+        system_rom_counts = {}  # type: dict[str, int]
         for sys_name, _ in roms_to_test:
             system_rom_counts[sys_name] = system_rom_counts.get(sys_name, 0) + 1
         total_systems = len(system_rom_counts)
@@ -879,7 +879,7 @@ Recommended for SSH use (prevents session drop from killing the audit):
         }
 
         # Rolling window of recent ROM durations for ETA calculation
-        recent_times: list[float] = []
+        recent_times = []  # type: list[float]
 
         # Track whether batocera.conf has been backed up this session
         conf_backed_up = False
