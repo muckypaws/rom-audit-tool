@@ -121,46 +121,67 @@ class RetroPiePlatform(Platform):
     # Each entry: (display_name, core_dir, core_so)
     # ------------------------------------------------------------------
     MAME_CORE_COMBINATIONS = [
-        ('lr-mame2000',    'lr-mame2000',    'mame2000_libretro.so'),
-        ('lr-mame2003',    'lr-mame2003',    'mame2003_libretro.so'),
-        ('lr-mame2003-plus','lr-mame2003-plus','mame2003_plus_libretro.so'),
-        ('lr-mame2010',    'lr-mame2010',    'mame2010_libretro.so'),
-        ('lr-mame2014',    'lr-mame2014',    'mame2014_libretro.so'),
-        ('lr-mame2016',    'lr-mame2016',    'mame2016_libretro.so'),
-        ('lr-mame',        'lr-mame',        'mame_libretro.so'),
+        ('lr-mame2000',     'lr-mame2000',     'mame2000_libretro.so'),
+        ('lr-mame2003',     'lr-mame2003',     'mame2003_libretro.so'),
+        ('lr-mame2003-plus','lr-mame2003-plus', 'mame2003_plus_libretro.so'),
+        ('lr-mame2010',     'lr-mame2010',     'mame2010_libretro.so'),
+        ('lr-mame2014',     'lr-mame2014',     'mame2014_libretro.so'),
+        ('lr-mame2016',     'lr-mame2016',     'mame2016_libretro.so'),
+        ('lr-mame',         'lr-mame',         'mame_libretro.so'),
     ]
 
     FBA_CORE_COMBINATIONS = [
-        ('lr-fba',         'lr-fba',         'fba_libretro.so'),
-        ('lr-fbalpha2012', 'lr-fbalpha2012', 'fbalpha2012_libretro.so'),
-        ('lr-fbneo',       'lr-fbneo',       'fbneo_libretro.so'),
-        # NeoGeo CD variant — separate core entry but same fbneo .so
-        ('lr-fbneo-neocd', 'lr-fbneo',       'fbneo_libretro.so'),
+        ('lr-fba',          'lr-fba',          'fba_libretro.so'),
+        ('lr-fbalpha2012',  'lr-fbalpha2012',  'fbalpha2012_libretro.so'),
+        ('lr-fbneo',        'lr-fbneo',        'fbneo_libretro.so'),
+        ('lr-fbneo-neocd',  'lr-fbneo',        'fbneo_libretro.so'),
+        ('lr-flycast',      'lr-flycast',      'flycast_libretro.so'),
     ]
 
-    # The arcade system on a fresh RetroPie install defaults to advmame
-    # and exposes all 8 emulators shown in the runcommand menu. Autofix
-    # tries all libretro cores (both MAME and FBA families). advmame
-    # itself is not included as an autofix target — it uses a completely
-    # different launch path (no -L flag, no retroarch) and would need
-    # its own write_mame_cfg variant. If all libretro cores fail and
-    # advmame is worth trying, that's a manual runcommand selection.
     ARCADE_CORE_COMBINATIONS = MAME_CORE_COMBINATIONS + FBA_CORE_COMBINATIONS
 
     SYSTEM_CORE_COMBINATIONS = {
-        'arcade':       ARCADE_CORE_COMBINATIONS,
-        'mame-libretro':MAME_CORE_COMBINATIONS,
-        'fba':          FBA_CORE_COMBINATIONS,
+        # Arcade — confirmed from emulators.cfg: lr-mame2000 (default),
+        # lr-mame2003, lr-mame2003-plus, lr-mame2010, lr-fbalpha2012,
+        # lr-fbneo, lr-fbneo-neocd, lr-flycast, advmame (standalone, skip)
+        'arcade':           ARCADE_CORE_COMBINATIONS,
+        'mame-libretro':    MAME_CORE_COMBINATIONS,
+
+        # FBA — confirmed from emulators.cfg: lr-fbneo (default),
+        # lr-fbneo-neocd, lr-fbalpha2012
+        'fba':              FBA_CORE_COMBINATIONS,
+
+        # ColecoVision — confirmed: lr-fbneo-cv (default), lr-bluemsx
+        'coleco': [
+            ('lr-fbneo-cv', 'lr-fbneo',   'fbneo_libretro.so'),
+            ('lr-bluemsx',  'lr-bluemsx', 'bluemsx_libretro.so'),
+        ],
+
+        # Amstrad CPC — confirmed: lr-caprice32 (default),
+        # capricerpi/zesarux are standalone scripts, skip for autofix
+        'amstradcpc': [
+            ('lr-caprice32', 'lr-caprice32', 'cap32_libretro.so'),
+        ],
+
+        # Atari 800 — confirmed: lr-atari800 (default),
+        # atari800/atari800-800/atari800-800xl/atari800-130xe are
+        # standalone scripts with different args — skip for now,
+        # they need their own launch path (not -L based)
+        'atari800': [
+            ('lr-atari800', 'lr-atari800', 'atari800_libretro.so'),
+        ],
     }
 
     # Lines that look like errors but are non-fatal MAME 2003 warnings
     NON_FATAL_MARKERS = [
         "cpunum_get_localtime() called for invalid cpu num",
-        # lr-caprice32 logs this when the game sets a non-standard CRTC
-        # screen size — purely informational geometry output, game runs fine
+        # lr-caprice32 CRTC geometry — informational only, game runs fine
         "[libretro-cap32]: Got size:",
         # RetroArch cloud sync not configured — harmless on local installs
         "Couldn't find any cloud sync driver",
+        # GameMode not installed — optional performance feature, not required
+        "GameMode cannot be enabled on this system",
+        "GameMode unsupported - disabling",
     ]
 
     LIBRETRO_CORES_PATH = "/opt/retropie/libretrocores"
@@ -421,15 +442,22 @@ class RetroPiePlatform(Platform):
             Core display name e.g. 'lr-fbneo', or '' if not determinable.
         """
         try:
-            core_name, _ = self._parse_emulators_cfg(system)
+            override_core = self._get_pergame_override(system, romname)
+            core_name, _ = self._parse_emulators_cfg(
+                system,
+                preferred_core=override_core
+            )
+            #core_name, _ = self._parse_emulators_cfg(system)
             # core_name is the emulators.cfg key e.g. 'lr-fbneo'
             # Map to the bare core name that UNVERIFIED_CORES uses
             CORE_NAME_MAP = {
                 'lr-fbneo':       'fbneo',
-                'lr-fbneo-cv':    'fbneo',   # ColecoVision variant
-                'lr-fbneo-neocd': 'fbneo',   # NeoGeo CD variant
+                'lr-fbneo-cv':    'fbneo',
+                'lr-fbneo-neocd': 'fbneo',
                 'lr-fba':         'fbneo',
                 'lr-fbalpha2012': 'fbneo',
+                # lr-bluemsx uses its own core — not an fbneo variant
+                # so no remapping needed, returned as-is
             }
             return CORE_NAME_MAP.get(core_name, core_name or '')
         except Exception:
@@ -681,7 +709,7 @@ class RetroPiePlatform(Platform):
             log(f"  Warning: could not read emulators.cfg for {system}: {e}")
         return '', ''
 
-    def _write_appendconfig(self) -> None:
+    def _write_appendconfig(self, core_dir: str = '') -> None:
         """
         Write /dev/shm/retroarch.cfg as runcommand.sh normally would.
 
@@ -690,6 +718,13 @@ class RetroPiePlatform(Platform):
         lr-nestopia, lr-gambatte and lr-mgba that do not support loading
         directly from ZIP files. Without this setting, those cores fail
         with [ERROR] Failed to load content when given a .zip path.
+
+        core_dir: the libretro core directory e.g.
+        '/opt/retropie/libretrocores/lr-bluemsx'. When set, writes
+        libretro_directory which some cores (confirmed: lr-bluemsx)
+        use to locate their BIOS/Machines folder. The UI's runcommand.sh
+        sets this in its appendconfig; without it BlueMSX exits
+        immediately because it cannot find the Machines/ subfolder.
 
         Screen resolution is detected at startup via _detect_screen_resolution
         so this works correctly across all display configurations.
@@ -702,24 +737,16 @@ class RetroPiePlatform(Platform):
             f'video_fullscreen_x = "{self._screen_width}"\n',
             f'video_fullscreen_y = "{self._screen_height}"\n',
             'cache_directory = "/tmp/retroarch"\n',
-            # Network command interface — required for screenshot capture
-            # via UDP. Written here rather than relying on the global
-            # retroarch.cfg because _write_appendconfig() overwrites
-            # /dev/shm/retroarch.cfg on every ROM launch (erasing anything
-            # _enable_retroarch_network_cmd() wrote in pre_audit).
-            # --appendconfig overrides per-system configs, so this is the
-            # only reliable place to guarantee the setting is active.
             'network_cmd_enable = "true"\n',
             'network_cmd_port = "55355"\n',
-            # Force gl video driver — the SCREENSHOT network command only
-            # works with gl. RetroArch 1.19.1 on fresh RetroPie installs
-            # defaults to a different driver when video_driver is commented
-            # out in the global config, causing SCREENSHOT to silently fail.
-            # Confirmed: working builds have video_driver = "gl" explicitly
-            # set; fresh builds have it commented out.
             'video_driver = "gl"\n',
             'video_gpu_screenshot = "false"\n',
+            f'system_directory = "{self._retropie_home}/RetroPie/BIOS"\n',
         ]
+
+        if core_dir:
+            lines.append(f'libretro_directory = "{core_dir}"\n')
+
         try:
             with open('/dev/shm/retroarch.cfg', 'w') as f:
                 f.writelines(lines)
@@ -749,14 +776,9 @@ class RetroPiePlatform(Platform):
         Returns:
             Complete command list for subprocess.Popen.
         """
-        self._write_appendconfig()
-
         # Check for a per-game override in the global emulators.cfg.
-        # This mirrors exactly what runcommand.sh does when launching
-        # from ES — without this, a ROM fixed by autofix would fall
-        # back to the system default on recheck and fail again.
-        romname          = os.path.basename(rom)
-        override_core    = (
+        romname       = os.path.basename(rom)
+        override_core = (
             self._get_pergame_override(system, romname)
             if core_path is None else None
         )
@@ -767,6 +789,19 @@ class RetroPiePlatform(Platform):
             system,
             preferred_core=override_core
         )
+
+        # Extract the core directory for _write_appendconfig — some cores
+        # (confirmed: lr-bluemsx) use libretro_directory to locate BIOS/
+        # Machines folders. The UI's runcommand.sh sets this; without it
+        # BlueMSX exits immediately.
+        effective_core_path = core_path
+        if not effective_core_path and cmd_template:
+            import re as _re
+            m = _re.search(r'-L\s+(\S+)', cmd_template)
+            if m:
+                effective_core_path = m.group(1)
+        core_dir = os.path.dirname(effective_core_path) if effective_core_path else ''
+        self._write_appendconfig(core_dir=core_dir)
         # Log which core is actually being used for this launch.
         # Previously this only logged when a per-game override applied —
         # the common case (system default core, no override yet) produced
@@ -785,6 +820,11 @@ class RetroPiePlatform(Platform):
 
         if cmd_template:
             cmd = cmd_template.replace('%ROM%', shlex.quote(rom))
+
+            if cmd.startswith('CON:'):
+                shell_cmd = cmd[4:].strip()
+                return ['/bin/bash', '-lc', shell_cmd]
+
             parts = shlex.split(cmd)
 
             # Override core if specified (autofix)
@@ -800,10 +840,16 @@ class RetroPiePlatform(Platform):
             is_retroarch = any(
                 'retroarch' in p.lower() for p in parts[:2]
             )
-            if is_retroarch and self._retroarch_verbose \
-                    and '--verbose' not in parts:
-                parts.append('--verbose')
-                if os.path.exists('/dev/shm/retroarch.cfg'):
+            #if is_retroarch and self._retroarch_verbose \
+            #        and '--verbose' not in parts:
+            #    parts.append('--verbose')
+            #    if os.path.exists('/dev/shm/retroarch.cfg'):
+            #        parts.extend(['--appendconfig', '/dev/shm/retroarch.cfg'])
+            if is_retroarch:
+                if self._retroarch_verbose and '--verbose' not in parts:
+                    parts.append('--verbose')
+
+                if '--appendconfig' not in parts and os.path.exists('/dev/shm/retroarch.cfg'):
                     parts.extend(['--appendconfig', '/dev/shm/retroarch.cfg'])
             return parts
 
@@ -884,6 +930,59 @@ class RetroPiePlatform(Platform):
 
         return available
 
+    def make_cmd(self, core_name: str, ob):
+        """
+        Return a temporary build_launch_cmd() wrapper for autofix.
+
+        Resolve the complete emulator command for the specified emulator
+        from emulators.cfg rather than simply substituting the libretro
+        core path. This preserves emulator-specific command-line options
+        such as subsystem arguments and wrapper scripts.
+
+        Args:
+            core_name: Emulator name to resolve from emulators.cfg.
+            original_build: Original build_launch_cmd() implementation.
+
+        Returns:
+            Callable compatible with build_launch_cmd().
+        """
+    
+        def cmd(s, r):
+            resolved_core, cmd_template = self._parse_emulators_cfg(
+                s,
+                preferred_core=core_name
+            )
+
+            if not cmd_template:
+                return ob(s, r, core_path=core_path)
+            effective_core_path = ''
+            parts_for_core = shlex.split(cmd_template)
+
+            if '-L' in parts_for_core:
+                effective_core_path = parts_for_core[
+                    parts_for_core.index('-L') + 1
+                ]
+
+            core_dir = (
+                os.path.dirname(effective_core_path)
+                if effective_core_path else ''
+            )
+
+            self._write_appendconfig(core_dir=core_dir)
+            cmdline = cmd_template.replace('%ROM%', shlex.quote(r))
+            parts = shlex.split(cmdline)
+            is_retroarch = any(
+                'retroarch' in p.lower() for p in parts[:2]
+            )
+
+            if is_retroarch:
+                if self._retroarch_verbose and '--verbose' not in parts:
+                    parts.append('--verbose')
+                if '--appendconfig' not in parts and os.path.exists('/dev/shm/retroarch.cfg'):
+                    parts.extend(['--appendconfig', '/dev/shm/retroarch.cfg'])
+            return parts
+
+        return cmd
     # ------------------------------------------------------------------
     # Autofix and MAME cfg creation
     # ------------------------------------------------------------------
@@ -929,12 +1028,12 @@ class RetroPiePlatform(Platform):
             dashboard.update(state)
 
             # Temporarily override build_launch_cmd for this core
-            def make_cmd(cp, ob):
-                def cmd(s, r):
-                    return ob(s, r, core_path=cp)
-                return cmd
-            self.build_launch_cmd = make_cmd(core_path, orig_build)
-
+            #def make_cmd(cp, ob):
+            #    def cmd(s, r):
+            #        return ob(s, r, core_path=cp)
+            #    return cmd
+            #self.build_launch_cmd = make_cmd(core_path, orig_build)
+            self.build_launch_cmd = self.make_cmd(core_name, orig_build)
             timeout = kwargs.get(
                 'timeout',
                 kwargs.get('slow_timeouts', {}).get(system, 20)
@@ -948,9 +1047,24 @@ class RetroPiePlatform(Platform):
 
             log(f"    Result: {fix_status} ({fix_elapsed:.1f}s) {fix_notes}")
 
+            #if fix_status == 'OK':
+            #    self.write_mame_cfg(system, romname, core_name)
+            #    notes = f"Fixed: {core_name} — MAME cfg created"
+            #    log(f"  Fixed with: {core_name}")
+            #    return 'FIXED', notes
             if fix_status == 'OK':
+                default_name, _ = self._parse_emulators_cfg(system)
+
+                if default_name and default_name != core_name:
+                    log(
+                        f"  Working core differs from default "
+                        f"({default_name}) — writing per-game override"
+                    )
+                    self._write_game_override(system, romname, core_name)
+
                 self.write_mame_cfg(system, romname, core_name)
-                notes = f"Fixed: {core_name} — MAME cfg created"
+
+                notes = f"Fixed: {core_name} — override written"
                 log(f"  Fixed with: {core_name}")
                 return 'FIXED', notes
 
@@ -1072,26 +1186,32 @@ class RetroPiePlatform(Platform):
         core_name: str
     ) -> bool:
         """
-        Write MAME per-game config file so the game initialises
-        correctly when launched via EmulationStation.
+        Write RetroPie per-game override and MAME cfg where applicable.
 
         MAME cores look for a per-game cfg file in a subdirectory of
-        the ROM folder. Creating this file replicates what MAME does
-        automatically on a successful first launch.
-
-        Directory structure created:
-            <roms_path>/<system>/<core_dir>/cfg/<romname>.cfg
-            <roms_path>/<system>/<core_dir>/cfg/default.cfg
+        the ROM folder. Non-MAME cores still need the RetroPie
+        per-game emulator override written when autofix finds a
+        working core that differs from the system default.
 
         Args:
-            system:    System folder name e.g. 'arcade'
-            romname:   ROM filename e.g. '1945kiii.zip'
-            core_name: Core that works e.g. 'lr-mame2010'
+            system: System folder name e.g. 'arcade'.
+            romname: ROM filename e.g. '1945kiii.zip'.
+            core_name: Core that works e.g. 'lr-mame2010'.
 
         Returns:
-            True if cfg file written successfully.
+            True if override or cfg handling completed successfully.
         """
-        # Find core_dir from MAME_CORE_COMBINATIONS
+        # Always write per-game emulators.cfg override if the working
+        # core differs from the system default.
+        default_name, _ = self._parse_emulators_cfg(system)
+        if default_name and default_name != core_name:
+            log(
+                f"  Working core differs from default "
+                f"({default_name}) — writing per-game override"
+            )
+            self._write_game_override(system, romname, core_name)
+
+        # Find core_dir from MAME_CORE_COMBINATIONS.
         core_dir = None
         for display_name, cd, core_so in self.MAME_CORE_COMBINATIONS:
             if display_name == core_name:
@@ -1099,15 +1219,16 @@ class RetroPiePlatform(Platform):
                 break
 
         if not core_dir:
-            log(f"  No core entry found for '{core_name}' — "
-                f"skipping cfg creation")
-            return False
+            log(
+                f"  No MAME cfg entry found for '{core_name}' — "
+                f"override handled, skipping MAME cfg creation"
+            )
+            return True
 
-        # MAME cfg subdirectory strips 'lr-' prefix
-        # lr-mame2010 → mame2010, lr-mame2003 → mame2003
+        # MAME cfg subdirectory strips 'lr-' prefix.
         mame_dir = core_dir.replace('lr-', '', 1)
         rom_base = os.path.splitext(romname)[0]
-        cfg_dir  = os.path.join(
+        cfg_dir = os.path.join(
             self.roms_path, system, mame_dir, 'cfg'
         )
         os.makedirs(cfg_dir, exist_ok=True)
@@ -1141,17 +1262,7 @@ class RetroPiePlatform(Platform):
                     f.write(default_cfg)
                 log(f"  Created default cfg: {default_path}")
 
-            # After writing the new cfg, remove stale cfg files
-            # for the same ROM in other core directories
             self._remove_stale_mame_cfgs(system, romname, mame_dir)
-
-            # Write per-game emulators.cfg override only if working
-            # core differs from the system default
-            default_name, _ = self._parse_emulators_cfg(system)
-            if default_name and default_name != core_name:
-                log(f"  Working core differs from default "
-                    f"({default_name}) — writing per-game override")
-                self._write_game_override(system, romname, core_name)
 
             return True
 
@@ -1614,16 +1725,29 @@ class RetroPiePlatform(Platform):
         time.sleep(2)
 
         self._safe_run(['tput', 'cnorm'])
-        self._safe_run(['tput', 'reset'])
+        #self._safe_run(['tput', 'reset'])
         self._safe_run(['stty', 'sane'])
         self._safe_run(['chvt', '1'], timeout=5)
+
+        log("Restarting EmulationStation on tty1...")
+
+        result = self._safe_run(
+            ['sudo', 'openvt', '-c', '1', '-s', '-f', 'emulationstation'],
+            timeout=10,
+            capture=True
+        )
+
+        if result is not None and result.returncode == 0:
+            log("EmulationStation restart command issued.")
+            return
 
         log("=" * 60)
         log("AUDIT COMPLETE — ACTION REQUIRED")
         log("=" * 60)
-        log("EmulationStation must be restarted manually.")
-        log("On the Pi console (tty1) type:")
-        log("  emulationstation")
+        log("To restart EmulationStation from this SSH session:")
+        log("  sudo openvt -c 1 -s -f emulationstation 2>&1")
+        log("Or to cleanly stop and let it restart automatically:")
+        log("  echo '' > /tmp/es-restart && killall emulationstation")
         log("Or reboot the Pi:")
         log("  sudo reboot")
         log("=" * 60)

@@ -107,7 +107,7 @@ DISPLAY_TIME = 3
 ROM_ETA_WINDOW = 10
 
 # Tool version
-VERSION = "1.4.3"
+VERSION = "1.4.4"
 
 # Systems requiring extended launch timeout due to tape, disk or slow
 # emulator startup. Values are absolute seconds, overriding MAX_WAIT.
@@ -652,7 +652,7 @@ Recommended for SSH use (prevents session drop from killing the audit):
                 recheck_statuses = {
                     'OK', 'FIXED', 'ERROR', 'LAUNCHED', 'TIMEOUT',
                     'GENUINE ERROR', 'MISSING BIOS', 'MISSING CORE',
-                    'NEEDS REVIEW'
+                    'NEEDS REVIEW','NO COMBINATIONS'
                 }
             # --recheck tests all failing statuses
             # --autofix alone only needs ERROR and GENUINE ERROR
