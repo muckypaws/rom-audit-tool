@@ -1727,7 +1727,7 @@ class RetroPiePlatform(Platform):
         self._safe_run(['tput', 'cnorm'])
         #self._safe_run(['tput', 'reset'])
         self._safe_run(['stty', 'sane'])
-        self._safe_run(['chvt', '1'], timeout=5)
+        #self._safe_run(['chvt', '1'], timeout=5)
 
         log("Restarting EmulationStation on tty1...")
 

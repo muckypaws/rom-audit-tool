@@ -1299,10 +1299,13 @@ class Platform(ABC):
 
         try:
             import shlex
+            cmd = self.build_launch_cmd(system, rom)
             log("Launch command:")
-            log("  " + " ".join(shlex.quote(x) for x in self.build_launch_cmd(system, rom)))
+            #log("  " + " ".join(shlex.quote(x) for x in self.build_launch_cmd(system, rom)))
+            log("  " + " ".join(shlex.quote(x) for x in cmd))
             proc = subprocess.Popen(
-                self.build_launch_cmd(system, rom),
+                #self.build_launch_cmd(system, rom),
+                cmd,
                 stdout=stdout_f,
                 stderr=stderr_f,
                 env=self.get_env(),
