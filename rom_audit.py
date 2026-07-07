@@ -107,7 +107,7 @@ DISPLAY_TIME = 3
 ROM_ETA_WINDOW = 10
 
 # Tool version
-VERSION = "1.4.4"
+VERSION = "1.4.4a"
 
 # Systems requiring extended launch timeout due to tape, disk or slow
 # emulator startup. Values are absolute seconds, overriding MAX_WAIT.

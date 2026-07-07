@@ -125,9 +125,11 @@ class RetroPiePlatform(Platform):
         ('lr-mame2003',     'lr-mame2003',     'mame2003_libretro.so'),
         ('lr-mame2003-plus','lr-mame2003-plus', 'mame2003_plus_libretro.so'),
         ('lr-mame2010',     'lr-mame2010',     'mame2010_libretro.so'),
-        ('lr-mame2014',     'lr-mame2014',     'mame2014_libretro.so'),
+        ('lr-mame2015',     'lr-mame2015',     'mame2015_libretro.so'),
         ('lr-mame2016',     'lr-mame2016',     'mame2016_libretro.so'),
         ('lr-mame',         'lr-mame',         'mame_libretro.so'),
+        ('lr-mess',         'lr-mess',         'mess_libretro.so'),
+        ('lr-mess2016',     'lr-mess2016',     'mess2016_libretro.so'),
     ]
 
     FBA_CORE_COMBINATIONS = [
@@ -135,40 +137,330 @@ class RetroPiePlatform(Platform):
         ('lr-fbalpha2012',  'lr-fbalpha2012',  'fbalpha2012_libretro.so'),
         ('lr-fbneo',        'lr-fbneo',        'fbneo_libretro.so'),
         ('lr-fbneo-neocd',  'lr-fbneo',        'fbneo_libretro.so'),
+        ('lr-neocd',        'lr-neocd',        'neocd_libretro.so'),
         ('lr-flycast',      'lr-flycast',      'flycast_libretro.so'),
     ]
 
     ARCADE_CORE_COMBINATIONS = MAME_CORE_COMBINATIONS + FBA_CORE_COMBINATIONS
 
     SYSTEM_CORE_COMBINATIONS = {
-        # Arcade — confirmed from emulators.cfg: lr-mame2000 (default),
-        # lr-mame2003, lr-mame2003-plus, lr-mame2010, lr-fbalpha2012,
-        # lr-fbneo, lr-fbneo-neocd, lr-flycast, advmame (standalone, skip)
         'arcade':           ARCADE_CORE_COMBINATIONS,
         'mame-libretro':    MAME_CORE_COMBINATIONS,
-
-        # FBA — confirmed from emulators.cfg: lr-fbneo (default),
-        # lr-fbneo-neocd, lr-fbalpha2012
         'fba':              FBA_CORE_COMBINATIONS,
 
-        # ColecoVision — confirmed: lr-fbneo-cv (default), lr-bluemsx
+        # NeoGeo
+        'neogeo': [
+            ('lr-fbneo',       'lr-fbneo',       'fbneo_libretro.so'),
+            ('lr-fbalpha2012', 'lr-fbalpha2012', 'fbalpha2012_libretro.so'),
+            ('lr-neocd',       'lr-neocd',       'neocd_libretro.so'),
+        ],
+
+        # ColecoVision
         'coleco': [
             ('lr-fbneo-cv', 'lr-fbneo',   'fbneo_libretro.so'),
             ('lr-bluemsx',  'lr-bluemsx', 'bluemsx_libretro.so'),
         ],
 
-        # Amstrad CPC — confirmed: lr-caprice32 (default),
-        # capricerpi/zesarux are standalone scripts, skip for autofix
-        'amstradcpc': [
-            ('lr-caprice32', 'lr-caprice32', 'cap32_libretro.so'),
+        # MSX / MSX2
+        'msx': [
+            ('lr-bluemsx', 'lr-bluemsx', 'bluemsx_libretro.so'),
+            ('lr-fmsx',    'lr-fmsx',    'fmsx_libretro.so'),
+        ],
+        'msx2': [
+            ('lr-bluemsx', 'lr-bluemsx', 'bluemsx_libretro.so'),
+            ('lr-fmsx',    'lr-fmsx',    'fmsx_libretro.so'),
         ],
 
-        # Atari 800 — confirmed: lr-atari800 (default),
-        # atari800/atari800-800/atari800-800xl/atari800-130xe are
-        # standalone scripts with different args — skip for now,
-        # they need their own launch path (not -L based)
+        # Amstrad CPC
+        'amstradcpc': [
+            ('lr-caprice32',  'lr-caprice32', 'cap32_libretro.so'),
+            ('lr-theodore',   'lr-theodore',  'theodore_libretro.so'),
+        ],
+
+        # Atari 800
         'atari800': [
             ('lr-atari800', 'lr-atari800', 'atari800_libretro.so'),
+        ],
+
+        # Atari 2600
+        'atari2600': [
+            ('lr-stella2014', 'lr-stella2014', 'stella2014_libretro.so'),
+            ('lr-stella',     'lr-stella',     'stella_libretro.so'),
+        ],
+
+        # Atari 7800
+        'atari7800': [
+            ('lr-prosystem', 'lr-prosystem', 'prosystem_libretro.so'),
+        ],
+
+        # Atari Lynx
+        'atarilynx': [
+            ('lr-beetle-lynx', 'lr-beetle-lynx', 'mednafen_lynx_libretro.so'),
+            ('lr-handy',       'lr-handy',        'handy_libretro.so'),
+        ],
+
+        # NES
+        'nes': [
+            ('lr-fceumm',   'lr-fceumm',   'fceumm_libretro.so'),
+            ('lr-nestopia', 'lr-nestopia', 'nestopia_libretro.so'),
+            ('lr-quicknes', 'lr-quicknes', 'quicknes_libretro.so'),
+            ('lr-mesen',    'lr-mesen',    'mesen_libretro.so'),
+        ],
+
+        # SNES
+        'snes': [
+            ('lr-snes9x',    'lr-snes9x',    'snes9x_libretro.so'),
+            ('lr-snes9x2010','lr-snes9x2010','snes9x2010_libretro.so'),
+            ('lr-snes9x2005','lr-snes9x2005','snes9x2005_libretro.so'),
+            ('lr-snes9x2002','lr-snes9x2002','snes9x2002_libretro.so'),
+            ('lr-bsnes',     'lr-bsnes',     'bsnes_libretro.so'),
+        ],
+
+        # Game Boy / GBC
+        'gb': [
+            ('lr-gambatte', 'lr-gambatte', 'gambatte_libretro.so'),
+            ('lr-tgbdual',  'lr-tgbdual',  'tgbdual_libretro.so'),
+            ('lr-mgba',     'lr-mgba',     'mgba_libretro.so'),
+        ],
+        'gbc': [
+            ('lr-gambatte', 'lr-gambatte', 'gambatte_libretro.so'),
+            ('lr-tgbdual',  'lr-tgbdual',  'tgbdual_libretro.so'),
+            ('lr-mgba',     'lr-mgba',     'mgba_libretro.so'),
+        ],
+
+        # Game Boy Advance
+        'gba': [
+            ('lr-mgba',    'lr-mgba',    'mgba_libretro.so'),
+            ('lr-gpsp',    'lr-gpsp',    'gpsp_libretro.so'),
+            ('lr-vba-next','lr-vba-next','vba_next_libretro.so'),
+        ],
+
+        # Mega Drive / Genesis
+        'megadrive': [
+            ('lr-genesis-plus-gx','lr-genesis-plus-gx','genesis_plus_gx_libretro.so'),
+            ('lr-picodrive',      'lr-picodrive',      'picodrive_libretro.so'),
+        ],
+        'genesis': [
+            ('lr-genesis-plus-gx','lr-genesis-plus-gx','genesis_plus_gx_libretro.so'),
+            ('lr-picodrive',      'lr-picodrive',      'picodrive_libretro.so'),
+        ],
+
+        # Mega CD / Sega CD
+        'segacd': [
+            ('lr-genesis-plus-gx','lr-genesis-plus-gx','genesis_plus_gx_libretro.so'),
+            ('lr-picodrive',      'lr-picodrive',      'picodrive_libretro.so'),
+        ],
+
+        # 32X
+        '32x': [
+            ('lr-picodrive', 'lr-picodrive', 'picodrive_libretro.so'),
+        ],
+
+        # Master System / Game Gear
+        'mastersystem': [
+            ('lr-genesis-plus-gx','lr-genesis-plus-gx','genesis_plus_gx_libretro.so'),
+            ('lr-picodrive',      'lr-picodrive',      'picodrive_libretro.so'),
+            ('lr-smsplus-gx',     'lr-smsplus-gx',     'smsplus_libretro.so'),
+        ],
+        'gamegear': [
+            ('lr-genesis-plus-gx','lr-genesis-plus-gx','genesis_plus_gx_libretro.so'),
+            ('lr-gearsystem',     'lr-gearsystem',     'gearsystem_libretro.so'),
+        ],
+
+        # PC Engine / TurboGrafx
+        'pcengine': [
+            ('lr-beetle-pce-fast',   'lr-beetle-pce-fast',   'mednafen_pce_fast_libretro.so'),
+            ('lr-beetle-pce',        'lr-beetle-pce',        'mednafen_pce_libretro.so'),
+            ('lr-beetle-supergrafx', 'lr-beetle-supergrafx', 'mednafen_supergrafx_libretro.so'),
+            ('lr-geargrafx',         'lr-geargrafx',         'geargrafx_libretro.so'),
+        ],
+
+        # PlayStation
+        'psx': [
+            ('lr-pcsx-rearmed', 'lr-pcsx-rearmed', 'pcsx_rearmed_libretro.so'),
+        ],
+
+        # N64
+        'n64': [
+            ('lr-mupen64plus',      'lr-mupen64plus',      'mupen64plus_libretro.so'),
+            ('lr-mupen64plus-next', 'lr-mupen64plus-next', 'mupen64plus_next_libretro.so'),
+            ('lr-parallel-n64',     'lr-parallel-n64',     'parallel_n64_libretro.so'),
+        ],
+
+        # Dreamcast
+        'dreamcast': [
+            ('lr-flycast', 'lr-flycast', 'flycast_libretro.so'),
+        ],
+
+        # NDS
+        'nds': [
+            ('lr-desmume',     'lr-desmume',     'desmume_libretro.so'),
+            ('lr-desmume2015', 'lr-desmume2015', 'desmume2015_libretro.so'),
+        ],
+
+        # ZX81
+        'zx81': [
+            ('lr-81', 'lr-81', '81_libretro.so'),
+        ],
+
+        # ZX Spectrum
+        'zxspectrum': [
+            ('lr-fuse', 'lr-fuse', 'fuse_libretro.so'),
+        ],
+
+        # Amiga
+        'amiga': [
+            ('lr-puae',     'lr-puae',     'puae_libretro.so'),
+            ('lr-puae2021', 'lr-puae2021', 'puae2021_libretro.so'),
+            ('lr-uae4arm',  'lr-uae4arm',  'uae4arm_libretro.so'),
+        ],
+
+        # C64 / C128 / VIC-20 — lr-vice .so varies by machine
+        'c64': [
+            ('lr-vice', 'lr-vice', 'vice_x64_libretro.so'),
+        ],
+        'c128': [
+            ('lr-vice', 'lr-vice', 'vice_x128_libretro.so'),
+        ],
+        'vic20': [
+            ('lr-vice', 'lr-vice', 'vice_xvic_libretro.so'),
+        ],
+
+        # Vectrex
+
+        # Odyssey 2 / Videopac
+        'odyssey2': [
+            ('lr-o2em', 'lr-o2em', 'o2em_libretro.so'),
+        ],
+
+        # Watara Supervision
+        'supervision': [
+            ('lr-potator', 'lr-potator', 'potator_libretro.so'),
+        ],
+
+        # Neo Geo Pocket
+        'ngp': [
+            ('lr-beetle-ngp', 'lr-beetle-ngp', 'mednafen_ngp_libretro.so'),
+        ],
+        'ngpc': [
+            ('lr-beetle-ngp', 'lr-beetle-ngp', 'mednafen_ngp_libretro.so'),
+        ],
+
+        # WonderSwan
+        'wonderswan': [
+            ('lr-beetle-wswan', 'lr-beetle-wswan', 'mednafen_wswan_libretro.so'),
+        ],
+        'wonderswancolor': [
+            ('lr-beetle-wswan', 'lr-beetle-wswan', 'mednafen_wswan_libretro.so'),
+        ],
+
+        # Virtual Boy
+        'virtualboy': [
+            ('lr-beetle-vb', 'lr-beetle-vb', 'mednafen_vb_libretro.so'),
+        ],
+
+        # Jaguar
+        'jaguar': [
+            ('lr-virtualjaguar', 'lr-virtualjaguar', 'virtualjaguar_libretro.so'),
+        ],
+
+        # Game & Watch
+        'gameandwatch': [
+            ('lr-gw', 'lr-gw', 'gw_libretro.so'),
+        ],
+
+        # Doom
+        'ports': [
+            ('lr-prboom',  'lr-prboom',  'prboom_libretro.so'),
+            ('lr-tyrquake','lr-tyrquake','tyrquake_libretro.so'),
+        ],
+
+        # DOS
+        'pc': [
+            ('lr-dosbox',      'lr-dosbox',      'dosbox_libretro.so'),
+            ('lr-dosbox-pure', 'lr-dosbox-pure', 'dosbox_pure_libretro.so'),
+        ],
+
+        # Saturn
+        'saturn': [
+            ('lr-beetle-saturn', 'lr-beetle-saturn', 'mednafen_saturn_libretro.so'),
+            ('lr-yabause',       'lr-yabause',       'yabause_libretro.so'),
+        ],
+
+        # PSP
+        'psp': [
+            ('lr-ppsspp', 'lr-ppsspp', 'ppsspp_libretro.so'),
+        ],
+
+        # ScummVM
+        'scummvm': [
+            ('lr-scummvm', 'lr-scummvm', 'scummvm_libretro.so'),
+        ],
+
+        # Hatari (Atari ST)
+        'atarist': [
+            ('lr-hatari', 'lr-hatari', 'hatari_libretro.so'),
+        ],
+
+        # Sharp X1
+        'x1': [
+            ('lr-x1', 'lr-x1', 'x1_libretro.so'),
+        ],
+
+        # PC-88
+        'pc88': [
+            ('lr-quasi88', 'lr-quasi88', 'quasi88_libretro.so'),
+        ],
+
+        # PC-98
+        'pc98': [
+            ('lr-np2kai', 'lr-np2kai', 'np2kai_libretro.so'),
+        ],
+
+        # Sharp X68000
+        'x68000': [
+            ('lr-px68k', 'lr-px68k', 'px68k_libretro.so'),
+        ],
+
+        # 3DO
+        '3do': [
+            ('lr-opera', 'lr-opera', 'opera_libretro.so'),
+        ],
+
+        # Fairchild Channel F
+        'channelf': [
+            ('lr-freechaf', 'lr-freechaf', 'freechaf_libretro.so'),
+        ],
+
+        # Intellivision
+        'intellivision': [
+            ('lr-freeintv', 'lr-freeintv', 'freeintv_libretro.so'),
+        ],
+
+        # Pokémon Mini
+        'pokemini': [
+            ('lr-pokemini', 'lr-pokemini', 'pokemini_libretro.so'),
+        ],
+
+        # NEC PC-FX
+        'pcfx': [
+            ('lr-beetle-pcfx', 'lr-beetle-pcfx', 'mednafen_pcfx_libretro.so'),
+        ],
+
+        # SG-1000
+        'sg-1000': [
+            ('lr-genesis-plus-gx','lr-genesis-plus-gx','genesis_plus_gx_libretro.so'),
+            ('lr-gearsystem',     'lr-gearsystem',     'gearsystem_libretro.so'),
+        ],
+
+        # TIC-80
+        'tic80': [
+            ('lr-tic80', 'lr-tic80', 'tic80_libretro.so'),
+        ],
+
+        # EP128
+        'ep128': [
+            ('lr-ep128emu', 'lr-ep128emu', 'ep128emu_libretro.so'),
         ],
     }
 
@@ -182,6 +474,11 @@ class RetroPiePlatform(Platform):
         # GameMode not installed — optional performance feature, not required
         "GameMode cannot be enabled on this system",
         "GameMode unsupported - disabling",
+        # Handy (lr-beetle-lynx) ROM format auto-detection — core guesses
+        # the layout and loads successfully regardless. 216 frames pushed
+        # confirmed on a real cart that triggered these warnings.
+        "[Handy] Invalid Cart (type)",
+        "[Handy] Invalid cart (no header?)",
     ]
 
     LIBRETRO_CORES_PATH = "/opt/retropie/libretrocores"
@@ -199,6 +496,7 @@ class RetroPiePlatform(Platform):
             self._detect_screen_resolution()
         )
         self._retroarch_verbose = self._probe_retroarch_verbose()
+        self._es_binary = None   # set by stop_emulationstation()
         log(f"RetroPie v{self._version} detected")
         log(f"RetroPie home: {self._retropie_home}")
         if not self._retroarch_verbose:
@@ -422,6 +720,38 @@ class RetroPiePlatform(Platform):
         """
         return ""
 
+    def validate_rom_launch(
+        self,
+        system: str,
+        rom: str
+    ) -> tuple[bool, str]:
+        """
+        Pre-launch validation for RetroPie.
+
+        Detects text-mode console games (CON: prefix in emulators.cfg)
+        such as Zork/zmachine running via frotz. These games:
+          - Launch instantly with no visual output on the TV screen
+          - Require interactive stdin (can't be redirected to tty1)
+          - Produce no launch indicators the tool can detect
+          - Result in the full timeout wait before detection succeeds
+
+        Rather than waste time waiting, detect them here and return
+        NEEDS REVIEW with a clear explanation. The ROM itself may be
+        perfectly valid — it just can't be tested by this tool.
+        """
+        romname = os.path.basename(rom)
+        _, cmd_template = self._parse_emulators_cfg(system)
+        if cmd_template:
+            cmd = cmd_template.replace('%ROM%', shlex.quote(rom))
+            if cmd.strip().startswith('CON:'):
+                return False, (
+                    f'Text-mode game (CON: launcher) — cannot be '
+                    f'tested via this tool. These games require '
+                    f'interactive stdin and produce no visual output '
+                    f'detectable from SSH. Verify manually.'
+                )
+        return True, ''
+
     def get_configured_core(self, system: str, romname: str) -> str:
         """
         Resolve which libretro core this ROM will actually launch with.
@@ -442,22 +772,22 @@ class RetroPiePlatform(Platform):
             Core display name e.g. 'lr-fbneo', or '' if not determinable.
         """
         try:
-            override_core = self._get_pergame_override(system, romname)
-            core_name, _ = self._parse_emulators_cfg(
-                system,
-                preferred_core=override_core
-            )
-            #core_name, _ = self._parse_emulators_cfg(system)
-            # core_name is the emulators.cfg key e.g. 'lr-fbneo'
-            # Map to the bare core name that UNVERIFIED_CORES uses
+            romname_only = os.path.basename(romname)
+            override = self._get_pergame_override(system, romname_only)
+            core_name = override if override else self._parse_emulators_cfg(system)[0]
+            # FBNeo grey-screen masking only applies when running ROMs from
+            # *other* systems through FBNeo (coleco, arcade etc.). NeoGeo is
+            # FBNeo's native format — ROMs either work or fail with logged
+            # errors. Don't trigger UNVERIFIED_CORES for native NeoGeo.
+            NATIVE_FBNEO_SYSTEMS = {'neogeo', 'fba', 'neogeocd'}
+            if system in NATIVE_FBNEO_SYSTEMS:
+                return core_name or ''
             CORE_NAME_MAP = {
                 'lr-fbneo':       'fbneo',
                 'lr-fbneo-cv':    'fbneo',
                 'lr-fbneo-neocd': 'fbneo',
                 'lr-fba':         'fbneo',
                 'lr-fbalpha2012': 'fbneo',
-                # lr-bluemsx uses its own core — not an fbneo variant
-                # so no remapping needed, returned as-is
             }
             return CORE_NAME_MAP.get(core_name, core_name or '')
         except Exception:
@@ -481,14 +811,16 @@ class RetroPiePlatform(Platform):
         without being excessive for a system this lightweight.
         """
         GAMEANDWATCH_DISPLAY_TIME = 10
-        RETROPIE_DEFAULT_DISPLAY_TIME = 5  # Longer than the base 3s —
-            # RetroArch on RetroPie needs extra time to fully initialise
-            # after the launch indicator fires. The indicator can appear
-            # while RetroArch is still mid-startup on this platform, so
-            # the base 3s default (which is fine for Batocera's
-            # emulatorlauncher wrapper) is too tight here.
+        NDS_DISPLAY_TIME = 15   # DRASTIC is a shell script launcher —
+                                 # no RetroArch launch indicators fire,
+                                 # process detection handles it instead.
+                                 # Needs longer than the default to ensure
+                                 # the emulator is genuinely running.
+        RETROPIE_DEFAULT_DISPLAY_TIME = 5
         if system == 'gameandwatch':
             return GAMEANDWATCH_DISPLAY_TIME
+        if system == 'nds':
+            return NDS_DISPLAY_TIME
         return RETROPIE_DEFAULT_DISPLAY_TIME
 
     @property
@@ -824,6 +1156,14 @@ class RetroPiePlatform(Platform):
             if cmd.startswith('CON:'):
                 shell_cmd = cmd[4:].strip()
                 return ['/bin/bash', '-lc', shell_cmd]
+
+            # Commands using shell builtins (pushd/popd) or semicolons
+            # must run via bash — shlex.split() would treat 'pushd' as
+            # a literal binary. Confirmed: oricutron uses
+            # "pushd /dir; ./binary args; popd" pattern.
+            SHELL_INDICATORS = ('pushd ', 'popd', '; ', '&&', '||')
+            if any(indicator in cmd for indicator in SHELL_INDICATORS):
+                return ['/bin/bash', '-c', cmd]
 
             parts = shlex.split(cmd)
 
@@ -1466,6 +1806,13 @@ class RetroPiePlatform(Platform):
             'advmame',      # AdvanceMAME
             'ppsspp',       # PSP standalone
             'mupen64plus',  # N64 standalone
+            'drastic',      # NDS standalone
+            'oricutron',    # Oric standalone
+            'vice',         # C64/C128/etc standalone
+            'atari800',     # Atari 800 standalone
+            'frotz',        # Z-machine text adventures
+            'dosbox',       # DOS standalone
+            'scummvm',      # ScummVM standalone
         ]
 
     def get_launch_timeout(self, system: str) -> int | None:
@@ -1486,12 +1833,28 @@ class RetroPiePlatform(Platform):
         """
         Prepare RetroPie for ROM testing.
 
-        Stops EmulationStation to release the KMS/DRM display, and
-        enables RetroArch network commands in retroarch.cfg so that
-        the screenshot capture can send SCREENSHOT via UDP port 55355.
-        Network commands are enabled permanently — they are low-risk
-        (localhost only) and useful for debugging outside the audit.
+        Kills any running emulator first (in case a game is active when
+        the audit starts), then stops EmulationStation to release the
+        KMS/DRM display. Running a game when the audit starts causes
+        permission errors: the active RetroArch process owns
+        /dev/shm/retroarch.cfg, and ES's child processes can't be
+        killed by the audit user.
         """
+        # Kill any running emulator first — must happen before ES stop
+        # so we have permission to write /dev/shm/retroarch.cfg and
+        # can cleanly kill ES without child-process permission errors.
+        log("Checking for running emulators...")
+        killed_any = False
+        for proc in self.emulator_processes:
+            result = self._safe_run(
+                ['pkill', '-9', proc], capture=True
+            )
+            if result and result.returncode == 0:
+                log(f"  Killed running emulator: {proc}")
+                killed_any = True
+        if killed_any:
+            time.sleep(2)  # Allow display/framebuffer to release
+
         self._enable_retroarch_network_cmd()
         self.stop_emulationstation()
 
@@ -1638,31 +2001,54 @@ class RetroPiePlatform(Platform):
         """
         Stop EmulationStation to release the KMS/DRM display.
 
-        The audit cannot launch ROMs while EmulationStation holds the
-        display. Sends SIGTERM to all ES processes, waits for them to
-        exit, then sends SIGKILL if any remain.
+        Detects which ES binary is running (stable or dev branch) and
+        stores it for start_emulationstation() to restart the same one.
         """
+        # Match both stable and dev branch paths:
+        # supplementary/emulationstation/emulationstation
+        # supplementary/emulationstation-dev/emulationstation
         result = self._safe_run(
-            ['pgrep', '-f',
-             'supplementary/emulationstation/emulationstation'],
+            ['pgrep', '-f', '-a', 'supplementary/emulationstation'],
             capture=True
         )
         if result is None or result.returncode != 0:
             log("EmulationStation is not running.")
+            self._es_binary = None
             return
 
-        pids = [p.strip() for p in result.stdout.strip().split('\n') if p.strip()]
-        log(f"Stopping EmulationStation (PIDs: {', '.join(pids)})...")
+        # Detect the actual binary path from the running process
+        self._es_binary = None
+        for line in result.stdout.strip().split('\n'):
+            for candidate in [
+                '/opt/retropie/supplementary/emulationstation-dev/emulationstation',
+                '/opt/retropie/supplementary/emulationstation/emulationstation',
+            ]:
+                if candidate in line:
+                    self._es_binary = candidate
+                    break
+            if self._es_binary:
+                break
 
-        for pid in pids:
+        pids = self._safe_run(
+            ['pgrep', '-f', 'supplementary/emulationstation'],
+            capture=True
+        )
+        pid_list = [
+            p.strip()
+            for p in (pids.stdout.strip().split('\n') if pids else [])
+            if p.strip()
+        ]
+        log(f"Stopping EmulationStation "
+            f"({'dev' if self._es_binary and 'dev' in self._es_binary else 'stable'}) "
+            f"(PIDs: {', '.join(pid_list)})...")
+
+        for pid in pid_list:
             self._safe_run(['kill', '-TERM', pid])
 
         time.sleep(5)
 
-        # Verify stopped — send KILL to anything remaining
         check = self._safe_run(
-            ['pgrep', '-f',
-             'supplementary/emulationstation/emulationstation'],
+            ['pgrep', '-f', 'supplementary/emulationstation'],
             capture=True
         )
         if check is not None and check.returncode == 0:
@@ -1727,12 +2113,18 @@ class RetroPiePlatform(Platform):
         self._safe_run(['tput', 'cnorm'])
         #self._safe_run(['tput', 'reset'])
         self._safe_run(['stty', 'sane'])
-        #self._safe_run(['chvt', '1'], timeout=5)
+        self._safe_run(['chvt', '1'], timeout=5)
 
         log("Restarting EmulationStation on tty1...")
 
+        # Always use /usr/bin/emulationstation — this is the bash wrapper
+        # that correctly sets up the environment and runs as the pi user.
+        # Launching the binary directly (emulationstation-dev/emulationstation)
+        # via sudo openvt runs it as root, causing joystick/config issues.
+        # The wrapper resolves to the correct dev or stable binary itself.
         result = self._safe_run(
-            ['sudo', 'openvt', '-c', '1', '-s', '-f', 'emulationstation'],
+            ['sudo', 'openvt', '-c', '1', '-s', '-f',
+             '/usr/bin/emulationstation'],
             timeout=10,
             capture=True
         )
