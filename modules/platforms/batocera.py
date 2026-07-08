@@ -139,6 +139,29 @@ class BatoceraPlaftorm(Platform):
         "ROM NEEDS REDUMP",
     ]
 
+    AUDIT_EXIT_MARKERS = [
+        "Exiting configgen with status 1",
+    ]
+
+    AUDIT_RUNTIME_MARKERS = [
+        "[INFO] [GL]: Found GL context:",
+        "[INFO] [Display]: Found display driver:",
+        "[INFO] [Video]: Found display server:",
+        "[INFO] [Core]: Version of libretro API:",
+        "[INFO] [Content]: Content loading skipped.",
+    ]
+
+    AUDIT_FATAL_MARKERS = [
+        "Traceback",
+        "No such file",
+        "Failed to open",
+        "Failed to load",
+        "Segmentation fault",
+        "segmentation fault",
+        "Permission denied",
+        "permission denied",
+    ]
+
     @property
     def non_fatal_post_launch_markers(self) -> list[str]:
         return self.NON_FATAL_POST_LAUNCH_MARKERS
@@ -228,6 +251,37 @@ class BatoceraPlaftorm(Platform):
             return int(match.group(1)) if match else 0
         except Exception:
             return 0
+    
+    def _read_process_env(self, process_name: str) -> dict[str, str]:
+        """
+        Read environment from the first matching running process.
+        Used on Batocera so SSH-launched audits inherit the same graphical
+        session variables as EmulationStation.
+        """
+        try:
+            result = subprocess.run(
+                ['pidof', process_name],
+                capture_output=True,
+                text=True,
+                timeout=3
+            )
+            pids = result.stdout.strip().split()
+            if not pids:
+                return {}
+
+            env_path = f"/proc/{pids[0]}/environ"
+            with open(env_path, "rb") as f:
+                raw = f.read()
+
+            env = {}
+            for item in raw.split(b'\0'):
+                if b'=' in item:
+                    key, value = item.split(b'=', 1)
+                    env[key.decode()] = value.decode(errors='ignore')
+            return env
+
+        except Exception:
+            return {}
 
     def _build_launcher(self) -> tuple[list[str], dict[str, str]]:
         """
@@ -516,6 +570,49 @@ class BatoceraPlaftorm(Platform):
         'cps3':     'fbneo',     # CPS3 subcategory
         'igs':      'fbneo',     # PolyGame Master / IGS arcade hardware
     }
+
+    def is_expected_audit_exit(
+        self,
+        returncode: int | None,
+        stdout: str,
+        stderr: str,
+        launched: bool,
+        killed_by_audit: bool,
+    ) -> bool:
+        """
+        Return whether Batocera's non-zero configgen exit is expected after
+        ROM Audit deliberately stops a successfully launched emulator.
+
+        Batocera's emulatorlauncher/configgen wrapper can report a non-zero
+        status when ROM Audit terminates a running emulator after the display
+        window. This is only treated as expected when Batocera also logged
+        runtime/display evidence and did not log a fatal error.
+
+        Args:
+            returncode: Process return code from emulatorlauncher.py.
+            stdout: Captured launcher stdout.
+            stderr: Captured launcher stderr.
+            launched: Whether ROM Audit considered the emulator launched.
+            killed_by_audit: Whether ROM Audit intentionally stopped it.
+
+        Returns:
+            True if the exit is an expected audit shutdown, otherwise False.
+        """
+        if not launched or not killed_by_audit:
+            return False
+
+        combined = (stdout or "") + "\n" + (stderr or "")
+
+        if not any(marker in combined for marker in self.AUDIT_EXIT_MARKERS):
+            return False
+
+        if not any(marker in combined for marker in self.AUDIT_RUNTIME_MARKERS):
+            return False
+
+        if any(marker in combined for marker in self.AUDIT_FATAL_MARKERS):
+            return False
+
+        return True
 
     def build_launch_cmd(self, system: str, rom: str) -> list[str]:
         """
@@ -912,31 +1009,62 @@ class BatoceraPlaftorm(Platform):
         """
         return '/userdata'
 
+#    def get_env(self) -> dict[str, str]:
+#        """
+#        Return the environment variables needed to launch a ROM.#
+#
+#       Builds on a copy of the current environment, adding the display
+#       server variables required for RetroArch to connect to the active
+#        Wayland session, and any extra variables needed for the detected
+#        Batocera version (e.g. PYTHONPATH for v38).
+
+#        Matches the EmulationStation launch environment as closely as
+#        possible so emulator behaviour (including MAME rompath resolution)
+#        is consistent between ES and tool launches.
+
+#        Returns:
+#            Complete environment dictionary for subprocess.Popen.
+#        """
+#        env = os.environ.copy()
+#        env.update({
+#            'DISPLAY':          ':0',
+#            'WAYLAND_DISPLAY':  'wayland-1',
+#            'XDG_RUNTIME_DIR':  '/var/run',
+#            'XDG_SESSION_TYPE': 'wayland',
+#            'HOME':             '/userdata/system',
+#            'SDL_NOMOUSE':      '1',
+#            'LANGUAGE':         '',
+#        })
+#        env.update(self._extra_env)
+#        return env
+
     def get_env(self) -> dict[str, str]:
         """
         Return the environment variables needed to launch a ROM.
 
-        Builds on a copy of the current environment, adding the display
-        server variables required for RetroArch to connect to the active
-        Wayland session, and any extra variables needed for the detected
-        Batocera version (e.g. PYTHONPATH for v38).
-
-        Matches the EmulationStation launch environment as closely as
-        possible so emulator behaviour (including MAME rompath resolution)
-        is consistent between ES and tool launches.
-
-        Returns:
-            Complete environment dictionary for subprocess.Popen.
+        Prefer EmulationStation's live graphical session environment over
+        the SSH/root environment. This matters for Batocera Wayland/Sway
+        launches, especially Flycast/Dreamcast.
         """
-        env = os.environ.copy()
+        env = self._read_process_env('emulationstation') or os.environ.copy()
+        """
         env.update({
             'DISPLAY':          ':0',
             'WAYLAND_DISPLAY':  'wayland-1',
             'XDG_RUNTIME_DIR':  '/var/run',
             'XDG_SESSION_TYPE': 'wayland',
             'HOME':             '/userdata/system',
+            'PWD':              '/userdata',
+            'OLDPWD':           '/',
             'SDL_NOMOUSE':      '1',
+            'SDL_RENDER_VSYNC': '1',
+            'LANG':             'en_GB.UTF-8',
+            'LC_ALL':           'en_GB.UTF-8',
             'LANGUAGE':         '',
+            'WLR_LIBINPUT_NO_DEVICES': '1',
+            'I3SOCK':           '/var/run/sway-ipc.0.sock',
+            'SWAYSOCK':         '/var/run/sway-ipc.0.sock',
         })
+        """
         env.update(self._extra_env)
         return env

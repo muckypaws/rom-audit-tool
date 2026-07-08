@@ -237,7 +237,7 @@ def clear_log(path: str) -> None:
 # CSV persistence
 # ---------------------------------------------------------------------------
 
-def compute_checksum(rom_path: str, algorithm: str) -> str:
+def compute_checksum(rom_path: str, algorithm: str, progress_callback=None) -> str:
     """
     Compute a checksum of a ROM file.
 
@@ -245,22 +245,37 @@ def compute_checksum(rom_path: str, algorithm: str) -> str:
     loading them entirely into memory. Returns an empty string on error.
 
     Args:
-        rom_path:  Full path to the ROM file.
-        algorithm: Hash algorithm — 'md5' or 'sha1'.
+        rom_path:           Full path to the ROM file.
+        algorithm:          Hash algorithm — 'md5' or 'sha1'.
+        progress_callback:  Optional callable(bytes_done, bytes_total, partial_hex)
+                            invoked every 256 chunks (~16MB). partial_hex is the
+                            in-progress digest at that point — not the final value,
+                            but visually confirms hashing is advancing. Used by
+                            callers to update a live dashboard during large file
+                            reads without importing dashboard machinery here.
 
     Returns:
         Checksum string in the format 'algorithm:hexdigest', e.g.
         'md5:d41d8cd98f00b204e9800998ecf8427e', or '' on failure.
     """
     import hashlib
+    CHUNK_SIZE     = 65536   # 64 KB
+    CALLBACK_EVERY = 256     # call back every ~16 MB
     try:
+        total = os.path.getsize(rom_path) if progress_callback else 0
         h = hashlib.new(algorithm)
+        done        = 0
+        chunk_count = 0
         with open(rom_path, 'rb') as f:
             while True:
-                chunk = f.read(65536)
+                chunk = f.read(CHUNK_SIZE)
                 if not chunk:
                     break
                 h.update(chunk)
+                done += len(chunk)
+                chunk_count += 1
+                if progress_callback and chunk_count % CALLBACK_EVERY == 0:
+                    progress_callback(done, total, h.hexdigest())
         return f"{algorithm}:{h.hexdigest()}"
     except Exception:
         return ''
@@ -1087,6 +1102,8 @@ def record_result(
     elapsed: float,
     rom: str = '',
     checksum_algorithm: str = '',
+    dashboard=None,
+    state: dict | None = None,
 ) -> str:
     """
     Record a single test result to the in-memory dict and CSV file.
@@ -1096,25 +1113,14 @@ def record_result(
     runs: if checksum_algorithm is empty this call, the existing
     checksum (if any) from a prior run is kept rather than blanked.
 
-    Whenever an existing checksum IS on record for this ROM, it is
-    always validated against a freshly-computed one — regardless of
-    whether checksum_algorithm is set this call. This is deliberate:
-    once a collection has checksums at all, ongoing integrity
-    monitoring is nearly free (the file gets read anyway to launch it;
-    hashing it is a small marginal cost against that), and catching a
-    changed file automatically is exactly what the SpyHunter case
-    needed — a ROM that worked, then silently stopped, traced to its
-    file content genuinely changing between audits with nothing in
-    this tool responsible for it. A mismatch is reported in both the
-    log (so it's seen immediately, not just buried in the CSV later)
-    and the notes field, and the OLD checksum is deliberately kept on
-    record rather than silently replaced by the new one — a one-time
-    report that then "self-heals" on the next run would mean a
-    genuine ongoing problem could go unnoticed after the first run
-    nobody happened to read closely. The mismatch keeps being flagged
-    on every subsequent run until checksum_algorithm is explicitly
-    passed again, which is treated as the user deliberately accepting
-    the new file state as the new baseline.
+    Checksum validation and recording are opt-in via checksum_algorithm.
+    When provided, the ROM file is always read fresh, compared against any
+    existing checksum on record (mismatch = file changed since last run),
+    and the new value written. When absent, the existing checksum is kept
+    as-is with no file I/O — plain recheck/autofix runs incur no hashing
+    cost. Previously validation ran unconditionally whenever a checksum was
+    on record, causing silent 30-60s stalls on large files (e.g. Dreamcast
+    CHDs) during runs where --checksum was never requested.
 
     Args:
         already_tested:     In-memory results dictionary to update.
@@ -1146,40 +1152,55 @@ def record_result(
     mismatch_note   = ''
     checksum_result = ''   # set to 'OK' or 'MISMATCH' if validation runs
 
-    if existing_checksum and rom and os.path.exists(rom):
-        existing_algo = (
-            existing_checksum.split(':', 1)[0]
-            if ':' in existing_checksum else 'md5'
-        )
-        fresh_for_validation = compute_checksum(rom, existing_algo)
-        if fresh_for_validation and fresh_for_validation != existing_checksum:
-            mismatch_note = (
-                f' CHECKSUM MISMATCH: file changed since last recorded '
-                f'(was {existing_checksum}, now {fresh_for_validation})'
-            )
-            log(f'  ⚠ CHECKSUM MISMATCH: {romname} — was '
-                f'{existing_checksum}, now {fresh_for_validation}. '
-                f'File may have been modified, corrupted, or replaced.')
-            checksum_result = 'MISMATCH'
-        elif fresh_for_validation:
-            log(f'  Checksum OK: {existing_algo.upper()} verified '
-                f'for {romname}')
-            checksum_result = 'OK'
+    def _make_progress_cb(label: str, algo: str):
+        """Return a dashboard progress callback for a checksum read, or None."""
+        if dashboard is None or state is None:
+            return None
+        def _cb(done: int, total: int, partial_hex: str):
+            pct = f'{done * 100 // total}%' if total else '...'
+            state['current_status'] = f'{label} ({pct})'
+            state['checksum_info']  = f'{algo}:{partial_hex}'
+            state['elapsed'] = __import__('time').time() - state['start_time']
+            dashboard.update(state)
+        return _cb
 
-    # Checksum is sticky across runs that don't recompute it.
-    # If checksum_algorithm is set this run, always recalculate fresh
-    # — the ROM file may have changed (see the SpyHunter MD5-mismatch
-    # investigation: a genuine file-content change between runs is
-    # exactly the case a fresh calculation needs to catch). If it's
-    # not set this run, keep whatever was already recorded rather than
-    # blanking it — a plain recheck/autofix run with no --checksum
-    # flag was silently wiping out a checksum from an earlier run that
-    # DID specify it, since this dict is a full replacement each call
-    # with no merge logic. A checksum took real time to compute (a
-    # full read of every ROM file) and there's no reason an unrelated
-    # run should throw that away.
-    if checksum_algorithm and rom:
-        checksum = compute_checksum(rom, checksum_algorithm)
+    # Checksum handling — only when --checksum is explicitly passed this run.
+    #
+    # Validation and recording are deliberately unified: when checksum_algorithm
+    # is provided we always recompute from the file, compare against any existing
+    # checksum on record (mismatch = file changed since last recorded), then
+    # write the fresh value. This is the right time to catch a changed file —
+    # the user explicitly asked for hashing this run, so the cost is expected.
+    #
+    # When checksum_algorithm is absent the existing checksum is kept as-is.
+    # Previously validation ran unconditionally whenever a checksum was on
+    # record, regardless of whether --checksum was passed — silent 30-60s
+    # stalls on large CHDs (full file read with no dashboard feedback) were
+    # the result. Validation is now opt-in via --checksum, same as recording.
+    if checksum_algorithm and rom and os.path.exists(rom):
+        algo = checksum_algorithm
+        fresh = compute_checksum(
+            rom, algo,
+            progress_callback=_make_progress_cb('Computing checksum', algo),
+        )
+        if fresh:
+            if existing_checksum and fresh != existing_checksum:
+                mismatch_note = (
+                    f' CHECKSUM MISMATCH: file changed since last recorded '
+                    f'(was {existing_checksum}, now {fresh})'
+                )
+                log(f'  ⚠ CHECKSUM MISMATCH: {romname} — was '
+                    f'{existing_checksum}, now {fresh}. '
+                    f'File may have been modified, corrupted, or replaced.')
+                checksum_result = 'MISMATCH'
+            elif existing_checksum:
+                log(f'  Checksum OK: {algo.upper()} {fresh} verified for {romname}')
+                checksum_result = 'OK'
+            else:
+                log(f'  Checksum recorded: {fresh}')
+            checksum = fresh
+        else:
+            checksum = existing_checksum
     else:
         checksum = existing_checksum
 
@@ -1324,4 +1345,3 @@ def run_cleanup(
     save_results(platform.results_csv, already_tested)
     log(f'\nCleanup complete. {processed}/{len(roms_to_process)} ROM(s) {args.action}d.')
     log('CSV updated.')
-

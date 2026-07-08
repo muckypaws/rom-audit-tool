@@ -275,10 +275,11 @@ Recommended for SSH use (prevents session drop from killing the audit):
     )
     parser.add_argument(
         '--checksum', type=str, metavar='ALGORITHM', default=None,
+        nargs='?', const='md5',
         choices=['md5', 'sha1'],
         help='Compute a checksum for each ROM and store it in the CSV. '
-             'Choose md5 or sha1. Blank if omitted. Note: large CD images '
-             'may add several seconds per ROM on slow storage.'
+             'Optionally specify md5 or sha1 (default: md5 if omitted). '
+             'Note: large CD images may add several seconds per ROM on slow storage.'
     )
     parser.add_argument(
         '--no-es-restart', action='store_true',
@@ -558,6 +559,8 @@ Recommended for SSH use (prevents session drop from killing the audit):
                 system, args.test, status, notes, elapsed,
                 rom=rom,
                 checksum_algorithm=getattr(args, 'checksum', None) or '',
+                dashboard=dashboard,
+                state=state,
             )
             if checksum_result:
                 state['checksum_result'] = checksum_result
@@ -1000,6 +1003,8 @@ Recommended for SSH use (prevents session drop from killing the audit):
                     system, romname, status, notes, elapsed,
                     rom=rom,
                     checksum_algorithm=state.get('checksum_algorithm', ''),
+                    dashboard=dashboard,
+                    state=state,
                 )
                 if checksum_result:
                     state['checksum_result'] = checksum_result

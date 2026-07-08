@@ -877,6 +877,41 @@ class Platform(ABC):
         """
         return detection.is_launched(content, self.launch_indicators)
 
+    def is_expected_audit_exit(
+        self,
+        returncode: int,
+        stdout: str,
+        stderr: str,
+        launched: bool,
+        killed_by_audit: bool
+    ) -> bool:
+        """
+        Determine whether a non-zero launcher exit should be treated as
+        successful.
+
+        Some front-ends and launcher wrappers return a non-zero exit code when
+        ROM Audit deliberately terminates an emulator after the configured
+        display period. Platforms that exhibit this behaviour can override this
+        method to suppress false failures.
+
+        The default implementation is intentionally conservative and treats all
+        non-zero exits as genuine failures.
+
+        Args:
+            returncode: Launcher process exit code.
+            stdout: Captured launcher stdout.
+            stderr: Captured launcher stderr.
+            launched: True if the emulator was considered successfully launched.
+            killed_by_audit: True if ROM Audit intentionally terminated the
+                emulator after the display period.
+
+        Returns:
+            True if the non-zero exit should be considered a successful audit,
+            otherwise False.
+        """
+        return False
+
+
     def on_successful_test(
         self,
         system: str,
@@ -1360,16 +1395,37 @@ class Platform(ABC):
         notes    = ''
         elapsed  = 0.0
         launched = False
+        killed_by_audit = False
 
         try:
             import shlex
             log("Launch command:")
             log("  " + " ".join(shlex.quote(x) for x in self.build_launch_cmd(system, rom)))
+
+            env = self.get_env()
+            """
+            if env:
+                for key in (
+                    "DISPLAY",
+                    "WAYLAND_DISPLAY",
+                    "XDG_SESSION_TYPE",
+                    "DBUS_SESSION_BUS_ADDRESS",
+                    "SDL_NOMOUSE",
+                    "PWD",
+                    "HOME",
+                    "LANG",
+                    "LC_ALL",
+                ):
+                    log(f"  ENV {key}={env.get(key)!r}")
+            else:
+                log("  ENV: using inherited process environment")
+            """
             proc = subprocess.Popen(
                 self.build_launch_cmd(system, rom),
                 stdout=stdout_f,
                 stderr=stderr_f,
-                env=self.get_env(),
+            #    env=self.get_env(),
+                env=env,
                 cwd=self.get_working_dir(),
                 preexec_fn=os.setsid
             )
@@ -1459,6 +1515,7 @@ class Platform(ABC):
                     dashboard.update(state)
                     time.sleep(min(CHECK_INTERVAL, display_end - time.monotonic()))
 
+
                 # Catches the exact edge the loop above can miss: the
                 # process dies right as display_end passes, between the
                 # loop's last poll and its time condition expiring — so
@@ -1511,10 +1568,36 @@ class Platform(ABC):
                     )
 
                 if not exited_early:
+                    # ROM Audit is deliberately stopping a game that reached the
+                    # display window. Some platform launchers report this as non-zero.
+                    killed_by_audit = True
                     self.kill_emulators()
-                try:
-                    proc.wait(timeout=15)
-                except subprocess.TimeoutExpired:
+                    # kill_emulators() sends SIGTERM via pkill, which some
+                    # emulators (notably Flycast/Dreamcast) are slow to honour
+                    # or ignore entirely — causing proc.wait() below to block
+                    # for its full 15s timeout before the fallback SIGKILL
+                    # lands. Kill the whole process group with SIGKILL directly
+                    # here, immediately after the pkill attempt, so proc.wait()
+                    # always returns promptly. The proc was spawned with
+                    # preexec_fn=os.setsid so os.killpg covers both the
+                    # launcher wrapper and any emulator child processes it
+                    # spawned, regardless of whether pkill found them by name.
+                    try:
+                        os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
+                    except ProcessLookupError:
+                        pass  # Already gone — pkill was sufficient
+                # Wait for the launcher process to exit, polling the
+                # dashboard so the display doesn't freeze. The SIGKILL
+                # above means this should return almost immediately in
+                # normal operation; the timeout is a last-resort backstop.
+                wait_deadline = time.monotonic() + 15
+                while proc.poll() is None and time.monotonic() < wait_deadline:
+                    state['elapsed'] = time.time() - state['start_time']
+                    state['current_status'] = 'Stopping emulator...'
+                    dashboard.update(state)
+                    time.sleep(CHECK_INTERVAL)
+                if proc.poll() is None:
+                    # Still alive after 15s — force-kill and block until gone
                     try:
                         os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
                     except ProcessLookupError:
@@ -1556,12 +1639,25 @@ class Platform(ABC):
         # get_post_kill_delay() and Recalbox's own kill_emulators()
         # override for a confirmed precedent of the same exit-code-1
         # symptom from exactly this cause.
-        time.sleep(self.get_post_kill_delay(system))
+        # Polled rather than a blind sleep so the dashboard stays live.
+        flush_deadline = time.monotonic() + self.get_post_kill_delay(system)
+        while time.monotonic() < flush_deadline:
+            state['elapsed'] = time.time() - state['start_time']
+            state['current_status'] = 'Waiting for logs...'
+            dashboard.update(state)
+            time.sleep(min(CHECK_INTERVAL, flush_deadline - time.monotonic()))
 
         # Phase 4: analyse complete log output
         stdout_content = filehandling.read_log(stdout_log)
         stderr_content = filehandling.read_log(stderr_log)
         combined       = stdout_content + '\n' + stderr_content
+        expected_audit_exit = self.is_expected_audit_exit(
+            returncode=proc.returncode if 'proc' in locals() else None,
+            stdout=stdout_content,
+            stderr=stderr_content,
+            launched=launched,
+            killed_by_audit=killed_by_audit,
+        )
 
         if launched:
             post_error = None
@@ -1603,7 +1699,7 @@ class Platform(ABC):
                 error_status, error_notes = self.parse_error(
                     stdout_content, stderr_content
                 )
-                if error_status:
+                if error_status  and not expected_audit_exit:
                     status = error_status
                     notes  = error_notes
                 elif exited_early:
@@ -1627,13 +1723,19 @@ class Platform(ABC):
                     # output still being flushed one short, deliberately
                     # cheap chance to land and be re-checked. See
                     # OK_RECHECK_DELAY above for why this exists.
-                    time.sleep(OK_RECHECK_DELAY)
+                    # Polled rather than a blind sleep so the dashboard stays live.
+                    recheck_deadline = time.monotonic() + OK_RECHECK_DELAY
+                    while time.monotonic() < recheck_deadline:
+                        state['elapsed'] = time.time() - state['start_time']
+                        state['current_status'] = 'Checking result...'
+                        dashboard.update(state)
+                        time.sleep(min(CHECK_INTERVAL, recheck_deadline - time.monotonic()))
                     fresh_stdout = filehandling.read_log(stdout_log)
                     fresh_stderr = filehandling.read_log(stderr_log)
                     recheck_status, recheck_notes = self.parse_error(
                         fresh_stdout, fresh_stderr
                     )
-                    if recheck_status:
+                    if recheck_status and not expected_audit_exit:
                         status  = recheck_status
                         notes   = recheck_notes
                         combined = fresh_stdout + '\n' + fresh_stderr
@@ -1674,7 +1776,7 @@ class Platform(ABC):
             error_status, error_notes = self.parse_error(
                 stdout_content, stderr_content
             )
-            if error_status:
+            if error_status and not expected_audit_exit:
                 status = error_status
                 notes  = error_notes
             elif self.is_launched(stdout_content):
