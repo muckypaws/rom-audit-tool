@@ -340,6 +340,36 @@ def _csv_safe(value: str) -> str:
     return value
 
 
+def merge_rom_lists(*rom_lists: list) -> list:
+    """
+    Merge multiple ROM lists into a single sorted, deduplicated list.
+
+    Each list is a sequence of (system, rom_path) tuples. The merged
+    result is sorted system-contiguous alphabetically by system then
+    filename — the ordering the dashboard counters and per-system
+    progress tracking depend on.
+
+    Deduplication is by (system, basename) — first occurrence wins,
+    so the primary path takes priority over additional paths.
+
+    Args:
+        *rom_lists: Any number of (system, path) tuple lists.
+
+    Returns:
+        Sorted, deduplicated list of (system, path) tuples.
+    """
+    seen = set()
+    merged = []
+    for rom_list in rom_lists:
+        for system, path in rom_list:
+            key = (system.lower(), os.path.basename(path).lower())
+            if key not in seen:
+                seen.add(key)
+                merged.append((system, path))
+    merged.sort(key=lambda t: (t[0].lower(), os.path.basename(t[1]).lower()))
+    return merged
+
+
 def snapshot_results(results_csv: str) -> str | None:
     """
     Create a timestamped snapshot of the CSV before a run that will
@@ -810,7 +840,6 @@ def discover_roms(
             (system, rom) for rom in sorted(system_roms)
         )
 
-    all_roms.sort(key=lambda t: (t[0].lower(), t[1].lower()))
     return all_roms
 
 # ---------------------------------------------------------------------------

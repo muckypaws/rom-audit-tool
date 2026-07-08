@@ -677,6 +677,50 @@ class Platform(ABC):
     @property
     def system_subdir_markers(self) -> list[str]:
         """
+        Filenames that mark a subdirectory as containing ROMs for the
+        parent system with a different core override. When present,
+        discover_roms() scans the subdirectory for ROMs.
+        Base returns [] — no subdir scanning. Recalbox overrides.
+        """
+        return []
+
+    def discover_all_roms(
+        self,
+        system_filter: list = None,
+        exclude: list = None,
+    ) -> list:
+        """
+        Discover all ROMs for this platform across all ROM storage paths,
+        including ports.
+
+        rom_audit.py calls this once and receives a complete, sorted,
+        deduplicated list — it has no knowledge of how many paths exist,
+        whether ports are gamelist-based, or any other platform detail.
+
+        The base implementation scans roms_path and additional_roms_paths,
+        then appends ports via discover_ports_roms(). Platforms override
+        those individual methods to customise their storage layout.
+        """
+        from modules.common import filehandling
+        lists = []
+        for path in [self.roms_path] + list(self.additional_roms_paths):
+            if os.path.isdir(path):
+                lists.append(filehandling.discover_roms(
+                    path, system_filter, exclude,
+                    subdir_markers=self.system_subdir_markers,
+                ))
+        ports = self.discover_ports_roms()
+        wants_ports = (
+            system_filter is None
+            or 'ports' in (system_filter or [])
+        )
+        if ports and wants_ports:
+            lists.append(ports)
+        result = filehandling.merge_rom_lists(*lists)
+        if ports and wants_ports:
+            log(f"  +{len(ports)} port(s) discovered")
+        return result
+        """
         Filenames that mark a subdirectory as a system-override folder
         containing ROMs for the parent system but with a different core.
 

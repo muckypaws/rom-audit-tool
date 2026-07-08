@@ -828,8 +828,11 @@ class BatoceraPlaftorm(Platform):
             installed_cores = autofixer.get_installed_cores(
                 self.libretro_core_path
             )
-        log(f"Found {len(installed_cores)} installed libretro core(s).")
+        log("=" * 60)
+        log(f"Batocera autofix core availability: "
+            f"{len(installed_cores)} installed libretro core(s).")
         autofixer.log_available_combinations(installed_cores)
+        log("=" * 60)
 
     # ------------------------------------------------------------------
     # Launcher and environment

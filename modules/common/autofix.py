@@ -455,23 +455,19 @@ def verify_unverified_core(
                 analysis_text = (
                     f' Pixel analysis failed: {result["error"]}.'
                 )
-                # status_override stays NEEDS REVIEW — analysis itself
-                # failed, no confirmation available either way.
             elif result['flagged']:
                 analysis_text = (
                     f' Pixel analysis: {result["grey_pct"]:.0f}% '
                     f'uniform light colour in the sampled region '
                     f'— LIKELY BLANK/ERROR SCREEN.'
                 )
-                # status_override stays NEEDS REVIEW — this is the
-                # actual masked-failure signature.
             else:
                 analysis_text = (
                     f' Pixel analysis: {result["grey_pct"]:.0f}% '
                     f'uniform light colour in the sampled region '
                     f'— likely genuine content.'
                 )
-                status_override = ''   # Cleared — keep OK/FIXED
+                status_override = ''
         except Exception as e:
             analysis_text = f' Pixel analysis error: {e}.'
             # status_override stays NEEDS REVIEW
@@ -554,14 +550,14 @@ def verify_dump_quality(
                     f'uniform light colour — game did not load despite '
                     f'the dump-quality warning.'
                 )
-                status_override = 'ERROR'  # Confirmed blank — escalate
+                status_override = 'ERROR'
             else:
                 analysis_text = (
                     f' Pixel analysis: {result["grey_pct"]:.0f}% '
                     f'uniform light colour — game loaded; '
                     f'running with known dump-quality issues.'
                 )
-                status_override = ''  # Confirmed content — keep IMPERFECT
+                status_override = ''
         except Exception as e:
             analysis_text = f' Pixel analysis error: {e}.'
 

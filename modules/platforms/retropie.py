@@ -666,6 +666,23 @@ class RetroPiePlatform(Platform):
         return f"RetroPie v{self._version}"
 
     @property
+    def additional_roms_paths(self) -> list[str]:
+        """
+        RetroPie supports two ROM locations:
+        - /home/pi/RetroPie/roms — standard SD card location (roms_path)
+        - /home/pi/RetroPie-mount/roms — USB drive mount for larger
+          libraries that won't fit on the SD card. The exfat-automount
+          service symlinks /home/pi/RetroPie-mount to the USB mount
+          point (/media/usb0 or similar) when a drive is present.
+
+        The usbromservice method (copies USB ROMs to roms_path) also
+        exists but doesn't need a separate path — copied ROMs already
+        appear in roms_path. This covers the mount/symlink approach only.
+        """
+        mount_roms = '/home/pi/RetroPie-mount/roms'
+        return [mount_roms] if os.path.isdir(mount_roms) else []
+
+    @property
     def roms_path(self) -> str:
         return os.path.join(self._retropie_home, "RetroPie", "roms")
 

@@ -607,57 +607,10 @@ Recommended for SSH use (prevents session drop from killing the audit):
         if skip_standard_scan:
             all_roms = []
         else:
-            all_roms = filehandling.discover_roms(
-                platform.roms_path, system_filter,
+            all_roms = platform.discover_all_roms(
+                system_filter,
                 getattr(args, 'exclude', None),
-                subdir_markers=platform.system_subdir_markers,
             )
-
-        # Scan any additional ROM paths (e.g. Recalbox share_init).
-        # Skipped along with the standard scan above when only 'ports'
-        # was requested — same reasoning, nothing for this to find.
-        if not skip_standard_scan:
-            for extra_path in getattr(platform, 'additional_roms_paths', []):
-                if os.path.isdir(extra_path):
-                    extra_roms = filehandling.discover_roms(
-                        extra_path, system_filter,
-                        getattr(args, 'exclude', None),
-                        subdir_markers=platform.system_subdir_markers,
-                    )
-                    # Deduplicate by system:romname — user path wins
-                    existing_keys = {
-                        f"{s}:{platform.get_rom_display_name(s, r)}"
-                        for s, r in all_roms
-                    }
-                    added = [
-                        (s, r) for s, r in extra_roms
-                        if f"{s}:{platform.get_rom_display_name(s, r)}"
-                        not in existing_keys
-                    ]
-                    if added:
-                        log(f"  +{len(added)} ROM(s) from {extra_path}")
-                    all_roms.extend(added)
-
-        # Ports discovery — gamelist.xml based, separate from file scan
-        wants_ports = (
-            args.system is None
-            or args.system == 'ports'
-            or (isinstance(args.system, list) and 'ports' in args.system)
-        )
-        if wants_ports:
-            port_roms = platform.discover_ports_roms()
-            if port_roms:
-                existing_keys = {
-                    f"{s}:{platform.get_rom_display_name(s, r)}"
-                    for s, r in all_roms
-                }
-                port_roms = [
-                    (s, r) for s, r in port_roms
-                    if f"{s}:{platform.get_rom_display_name(s, r)}"
-                    not in existing_keys
-                ]
-                log(f"  +{len(port_roms)} port(s) discovered via gamelist.xml")
-                all_roms.extend(port_roms)
 
         log(f"Total roms found: {len(all_roms)}")
 
