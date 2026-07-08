@@ -675,6 +675,26 @@ class Platform(ABC):
         return []
 
     @property
+    def system_subdir_markers(self) -> list[str]:
+        """
+        Filenames that mark a subdirectory as a system-override folder
+        containing ROMs for the parent system but with a different core.
+
+        When discover_roms() encounters a subdirectory containing any of
+        these files, it scans the subdirectory for ROMs and includes them
+        under the parent system name. The override files (e.g. .core.cfg,
+        .recalbox.conf) are picked up at launch time by the platform.
+
+        Confirmed use case: Recalbox C64 folder contains a
+        'Commodore Plus4' subdirectory with .core.cfg and .recalbox.conf
+        files — ROMs inside are Plus4 games that need a different VICE
+        core, but belong under the c64 system in the audit.
+
+        Returns empty list by default — subdirectory scanning disabled.
+        """
+        return []
+
+    @property
     def libretro_core_path(self) -> str:
         """Path to installed libretro core .so files."""
         return "/usr/lib/libretro"
@@ -1299,13 +1319,10 @@ class Platform(ABC):
 
         try:
             import shlex
-            cmd = self.build_launch_cmd(system, rom)
             log("Launch command:")
-            #log("  " + " ".join(shlex.quote(x) for x in self.build_launch_cmd(system, rom)))
-            log("  " + " ".join(shlex.quote(x) for x in cmd))
+            log("  " + " ".join(shlex.quote(x) for x in self.build_launch_cmd(system, rom)))
             proc = subprocess.Popen(
-                #self.build_launch_cmd(system, rom),
-                cmd,
+                self.build_launch_cmd(system, rom),
                 stdout=stdout_f,
                 stderr=stderr_f,
                 env=self.get_env(),

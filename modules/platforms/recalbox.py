@@ -229,13 +229,29 @@ class RecalboxPlatform(Platform):
                 ]
                 if not package_paths:
                     continue
+                # Check both gamelist entries AND filesystem for native
+                # executable siblings — older Recalbox gamelists omit
+                # WOLF3D.EXE entirely, so checking only resolved entries
+                # misses the sibling. The .pk3 should be skipped whenever
+                # a .exe/.bat/.com exists in the same folder on disk.
+                native_exts_on_disk = {
+                    os.path.splitext(f)[1].lower()
+                    for f in os.listdir(folder)
+                    if os.path.isfile(os.path.join(folder, f))
+                }
+                has_native_sibling = bool(
+                    native_exts_on_disk & native_exts
+                )
                 native_cores_here = {
                     resolved[p][2] for p in paths
                     if os.path.splitext(p)[1].lower() in native_exts
                     and resolved[p][2]
                 }
                 for p in package_paths:
-                    if resolved[p][2] in native_cores_here:
+                    pkg_core = resolved[p][2]
+                    if pkg_core in native_cores_here or (
+                        has_native_sibling and pkg_core
+                    ):
                         skip_paths.add(p)
 
             for system, path, disp in entries:
@@ -276,6 +292,17 @@ class RecalboxPlatform(Platform):
         audit tool. User path takes priority on filename clashes.
         """
         return ["/recalbox/share_init/roms"]
+
+    @property
+    def system_subdir_markers(self) -> list[str]:
+        """
+        Recalbox uses subdirectories within system ROM folders to group
+        ROMs that need a different core — e.g. 'Commodore Plus4' inside
+        the c64 folder, with .core.cfg and .recalbox.conf overriding the
+        core at launch time. These subdirs should be scanned for ROMs
+        under the parent system.
+        """
+        return ['.core.cfg', '.recalbox.conf']
 
     @property
     def stdout_log(self) -> str:
@@ -405,12 +432,17 @@ class RecalboxPlatform(Platform):
         })
         return env
 
-    # BIOS requirements keyed by emulator OR core name.
+    # Emulators that require an active display server (X11/Wayland) to
+    # initialise SDL2 video. These cannot be tested when ES is stopped
+    # because stopping ES removes the display entirely on Recalbox.
+    # Confirmed: solarus-run aborts with SIGABRT (-6) when DISPLAY and
+    # WAYLAND_DISPLAY are both unset, even with an otherwise-identical
+    # command to the working UI launch.
+    SDL2_DISPLAY_REQUIRED = {'solarus', 'solarus-run'}
+
     # For standalone emulators the key is the emulator name.
     # For libretro cores the key is the core name.
     # Any one listed file present in /recalbox/share/bios/ is sufficient.
-    # These emulators silently launch without BIOS, showing garbage
-    # screens (e.g. Apple IIgs @ characters) rather than logging errors.
     STANDALONE_BIOS_REQUIREMENTS: dict[str, list[str]] = {
         'gsplus':   ['apple2gs.rom', 'apple2gs2.rom', 'apple2gs3.rom'],
         'linapple': ['apple2e.rom', 'APPLE2E.ROM'],
@@ -451,6 +483,18 @@ class RecalboxPlatform(Platform):
                 f"No emulator core found for [{system}] — "
                 f"system may require a standalone emulator not "
                 f"installed on this device"
+            )
+
+        # SDL2 standalones require an active display server. Stopping ES
+        # removes the display entirely on Recalbox — confirmed: DISPLAY
+        # and WAYLAND_DISPLAY both empty, no X/Wayland sockets present.
+        # These cannot be tested in headless mode.
+        if emulator and emulator.lower() in self.SDL2_DISPLAY_REQUIRED:
+            return False, (
+                f'{emulator} requires an active display (SDL2) — '
+                f'cannot be tested after EmulationStation is stopped '
+                f'(no display server available). '
+                f'Verify manually via EmulationStation.'
             )
 
         bios_dir = '/recalbox/share/bios'
@@ -551,7 +595,80 @@ class RecalboxPlatform(Platform):
             "-rom",      rom,
             "-emulator", emulator,
             "-core",     core,
-        ]
+        ] + self._get_controller_args()
+
+    def _get_controller_args(self) -> list[str]:
+        """
+        Build controller arguments for emulatorlauncher.py matching
+        exactly what EmulationStation passes.
+
+        ES passes: -p1index 0 -p1guid <guid> -p1name <name>
+                   -p1nbaxes N -p1nbhats N -p1nbbuttons N
+                   -p1devicepath /dev/input/eventN
+
+        configgen uses the GUID + name to look up button mappings.
+        The quit-combo is derived from the hotkey + start button IDs
+        in es_input.cfg (confirmed: hotkey id=7, start id=8 → 7+8).
+
+        Key differences from a naive implementation:
+        - devicepath is /dev/input/eventN not /dev/input/jsN
+        - index is always 0 when ES runs (it holds the device open);
+          our tool also gets 0 since ES is stopped before we run
+        - nbaxes and nbhats are required fields
+        """
+        import xml.etree.ElementTree as ET
+
+        input_cfg = '/recalbox/share/system/.emulationstation/es_input.cfg'
+        if not os.path.exists(input_cfg):
+            return []
+        try:
+            root = ET.parse(input_cfg).getroot()
+            cfg = root.find('inputConfig')
+            if cfg is None:
+                return []
+
+            guid        = cfg.get('deviceGUID', '')
+            name        = cfg.get('deviceName', '')
+            nb_buttons  = cfg.get('deviceNbButtons', '12')
+            nb_axes     = cfg.get('deviceNbAxes', '4')
+            nb_hats     = cfg.get('deviceNbHats', '1')
+
+            if not (guid and name):
+                return []
+
+            # Find the event device path — ES uses /dev/input/eventN,
+            # not /dev/input/jsN. Match by GUID via udev if possible,
+            # otherwise fall back to event0.
+            device_path = '/dev/input/event0'
+            try:
+                for entry in sorted(os.listdir('/dev/input')):
+                    if entry.startswith('event'):
+                        candidate = f'/dev/input/{entry}'
+                        # Try to read the device name via ioctl-free method
+                        proc_path = f'/proc/bus/input/devices'
+                        with open(proc_path) as f:
+                            content = f.read()
+                        for block in content.split('\n\n'):
+                            if entry in block and name[:10].lower() in block.lower():
+                                device_path = candidate
+                                break
+            except Exception:
+                pass
+
+            log(f"  Controller: {name[:40]} guid={guid[:16]}... "
+                f"path={device_path}")
+            return [
+                '-p1index',      '0',
+                '-p1guid',       guid,
+                '-p1name',       name,
+                '-p1nbaxes',     nb_axes,
+                '-p1nbhats',     nb_hats,
+                '-p1nbbuttons',  nb_buttons,
+                '-p1devicepath', device_path,
+            ]
+        except Exception as e:
+            log(f"  Warning: could not read controller config: {e}")
+            return []
 
     def _parse_system_readme(
         self,
@@ -669,16 +786,23 @@ class RecalboxPlatform(Platform):
             Full path to binary if found, None otherwise.
         """
         name_lower = name.lower()
+        # Some standalone binaries use a different name from their system/emulator
+        # e.g. the 'solarus' emulator is actually 'solarus-run' in /usr/bin
+        name_aliases = {
+            'solarus': ['solarus-run', 'solarus'],
+            'wasm4':   ['wasm4', 'w4'],
+        }
+        candidates = name_aliases.get(name_lower, [name_lower])
         try:
             for entry in os.listdir('/usr/bin'):
-                if entry.lower() == name_lower:
+                if entry.lower() in candidates:
                     full = f'/usr/bin/{entry}'
                     if os.path.isfile(full):
                         return full
                     # Binary inside same-named subdirectory
                     if os.path.isdir(full):
                         for sub in os.listdir(full):
-                            if sub.lower() == name_lower:
+                            if sub.lower() in candidates:
                                 candidate = f'{full}/{sub}'
                                 if os.path.isfile(candidate):
                                     return candidate
@@ -734,7 +858,7 @@ class RecalboxPlatform(Platform):
         # so the user knows why the system can't be tested.
         if from_readme:
             types = ', '.join(
-                f"{e}-{c}" for e, c in from_readme
+                f"{e}-{c}" for e, c, *_ in from_readme
             )
             log(f"  [{system}] No installed emulators found. "
                 f"Readme lists: {types}")
@@ -1600,11 +1724,13 @@ class RecalboxPlatform(Platform):
             log("Autofix: no systems with installed cores found.")
             return
 
-        log(f"Autofix core availability ({len(found)} system(s) with "
-            f"at least one installed core):")
+        log("=" * 60)
+        log(f"Recalbox autofix core availability ({len(found)} system(s) "
+            f"with at least one installed core):")
         for system, count, cores in found:
-            core_str = ', '.join(dict.fromkeys(cores))  # preserve order, deduplicate
+            core_str = ', '.join(dict.fromkeys(cores))
             log(f"  [{system}] {count} core(s) available: {core_str}")
+        log("=" * 60)
 
     def attempt_autofix(
         self,

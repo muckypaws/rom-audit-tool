@@ -51,7 +51,14 @@ ROM_EXTENSIONS = [
     '*.chf',                                       # Channel F
     '*.gam',                                       # Vectrex .gam
     '*.car',                                       # Atari cartridge image
-    '*.rpk',                                       # TI-99/4A cartridge
+    '*.tic',                                       # TIC-80 fantasy computer
+    '*.wasm',                                      # WASM-4 fantasy console
+    '*.solarus',                                   # Solarus game engine
+    '*.hex',                                       # Arduboy / Intel HEX
+    '*.p8',                                        # PICO-8 cartridge
+    '*.nx',                                        # LowRes NX fantasy computer
+    '*.lutro',                                     # Lutro game engine
+    '*.ort',                                       # Oric Atmos format
     '*.gcm', '*.gcz', '*.wbfs', '*.dol', '*.ciso',# GameCube / Wii / Triforce
 
     # ---------------------------------------------------------------
@@ -333,6 +340,38 @@ def _csv_safe(value: str) -> str:
     return value
 
 
+def snapshot_results(results_csv: str) -> str | None:
+    """
+    Create a timestamped snapshot of the CSV before a run that will
+    modify it. Returns the snapshot path, or None if the CSV doesn't
+    exist yet (nothing to snapshot).
+
+    Called once at the start of a meaningful run (new audit, recheck,
+    autofix) — not on --test or --cleanup which don't bulk-modify rows.
+    The snapshot preserves the state before the run so a failed or
+    interrupted run can be rolled back manually.
+
+    The per-write .bak created by save_results() is kept too — it
+    covers the last-write safety net — but is not a useful rollback
+    point for a run that modifies thousands of rows.
+
+    Returns:
+        Full path to the snapshot file, or None if no snapshot was made.
+    """
+    if not os.path.exists(results_csv):
+        return None
+    from datetime import datetime
+    ts = datetime.now().strftime('%Y%m%d_%H%M%S')
+    base, ext = os.path.splitext(results_csv)
+    snapshot_path = f'{base}_{ts}{ext}'
+    try:
+        shutil.copy2(results_csv, snapshot_path)
+        return snapshot_path
+    except Exception as e:
+        log(f"Warning: could not create CSV snapshot: {e}")
+        return None
+
+
 def save_results(results_csv: str, results_dict: dict[str, dict]) -> None:
     """
     Write all audit results back to the CSV file.
@@ -491,7 +530,8 @@ def clear_error_logs(
 def discover_roms(
     roms_base: str,
     system_filter: list = None,
-    exclude: list = None
+    exclude: list = None,
+    subdir_markers: list = None,
 ) -> list:
     """
     Discover all ROM files across system folders under the roms base path.
@@ -500,16 +540,22 @@ def discover_roms(
     media subdirectories (box art, videos, screenshots, manuals etc).
     Systems listed in SKIP_SYSTEMS are ignored entirely.
 
+    When subdir_markers is provided, subdirectories containing any of
+    the marker files are also scanned for ROMs under the parent system
+    name. This covers cases like Recalbox's 'Commodore Plus4' subfolder
+    within c64 — same system, different core controlled by .core.cfg /
+    .recalbox.conf sidecar files picked up at launch time.
+
     Args:
-        roms_base:     Base path where all system ROM folders live.
-        system_filter: If provided, only scan these system folders.
-                       Pass None to scan all systems.
-        exclude:       List of system names to skip in addition to
-                       SKIP_SYSTEMS. Pass None to skip nothing extra.
+        roms_base:      Base path where all system ROM folders live.
+        system_filter:  If provided, only scan these system folders.
+        exclude:        List of system names to skip in addition to
+                        SKIP_SYSTEMS.
+        subdir_markers: Filenames that mark a subdir as a system-override
+                        folder to scan (e.g. ['.core.cfg', '.recalbox.conf']).
 
     Returns:
         Sorted list of (system_name, full_rom_path) tuples.
-        Returns an empty list if roms_base does not exist.
     """
     all_roms = []
     skip     = set(SKIP_SYSTEMS) | set(exclude or [])
@@ -724,12 +770,47 @@ def discover_roms(
         except PermissionError:
             pass
 
+        # Platform marker subdirectories — e.g. Recalbox's 'Commodore Plus4'
+        # within c64, detected by the presence of .core.cfg or .recalbox.conf.
+        # ROMs inside are treated as part of the parent system; their core
+        # override is handled at launch time by the platform's sidecar logic.
+        subdir_markers_list = subdir_markers or []
+        if subdir_markers_list:
+            try:
+                for entry in os.listdir(system_path):
+                    entry_path = os.path.join(system_path, entry)
+                    if not os.path.isdir(entry_path):
+                        continue
+                    if entry.startswith('.') or entry.lower() == 'media':
+                        continue
+                    # Only scan if the subdirectory contains a marker file
+                    dir_files = os.listdir(entry_path)
+                    if not any(m in dir_files for m in subdir_markers_list):
+                        continue
+                    log(f"  Scanning system-override subdir: {entry}/")
+                    for filename in dir_files:
+                        full_path = os.path.join(entry_path, filename)
+                        if not os.path.isfile(full_path):
+                            continue
+                        ext = os.path.splitext(filename)[1].lower()
+                        if ext not in valid_exts:
+                            continue
+                        if filename.startswith('._') or \
+                                filename.startswith('.'):
+                            continue
+                        if os.path.getsize(full_path) == 0:
+                            continue
+                        system_roms.append(full_path)
+            except PermissionError:
+                pass
+
         if system_roms:
             log(f"  Found {len(system_roms)} roms in [{system}]")
         all_roms.extend(
             (system, rom) for rom in sorted(system_roms)
         )
 
+    all_roms.sort(key=lambda t: (t[0].lower(), t[1].lower()))
     return all_roms
 
 # ---------------------------------------------------------------------------

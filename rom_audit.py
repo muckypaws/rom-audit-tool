@@ -107,7 +107,7 @@ DISPLAY_TIME = 3
 ROM_ETA_WINDOW = 10
 
 # Tool version
-VERSION = "1.4.4a"
+VERSION = "1.4.4b"
 
 # Systems requiring extended launch timeout due to tape, disk or slow
 # emulator startup. Values are absolute seconds, overriding MAX_WAIT.
@@ -430,6 +430,20 @@ Recommended for SSH use (prevents session drop from killing the audit):
         already_tested = filehandling.load_results(platform.results_csv)
         log(f"Previously tested: {len(already_tested)} roms")
 
+        # Snapshot the CSV before any run that will bulk-modify it.
+        # --test and --cleanup are excluded (single-row or no-CSV changes).
+        # The per-write .bak from save_results() is too granular to be
+        # useful for rollback after a long run changes thousands of rows.
+        is_bulk_run = (
+            not args.test
+            and not getattr(args, 'cleanup', False)
+            and already_tested  # nothing to snapshot if CSV is empty
+        )
+        if is_bulk_run:
+            snapshot = filehandling.snapshot_results(platform.results_csv)
+            if snapshot:
+                log(f"CSV snapshot: {os.path.basename(snapshot)}")
+
         # ------------------------------------------------------------------
         # Single ROM test mode
         # ------------------------------------------------------------------
@@ -437,13 +451,15 @@ Recommended for SSH use (prevents session drop from killing the audit):
             log("Scanning for rom...")
             all_roms = filehandling.discover_roms(
                 platform.roms_path, args.system,
-                getattr(args, 'exclude', None)
+                getattr(args, 'exclude', None),
+                subdir_markers=platform.system_subdir_markers,
             )
             for extra_path in getattr(platform, 'additional_roms_paths', []):
                 if os.path.isdir(extra_path):
                     extra = filehandling.discover_roms(
                         extra_path, args.system,
-                        getattr(args, 'exclude', None)
+                        getattr(args, 'exclude', None),
+                        subdir_markers=platform.system_subdir_markers,
                     )
                     existing = {
                         f"{s}:{os.path.basename(r)}" for s, r in all_roms
@@ -593,7 +609,8 @@ Recommended for SSH use (prevents session drop from killing the audit):
         else:
             all_roms = filehandling.discover_roms(
                 platform.roms_path, system_filter,
-                getattr(args, 'exclude', None)
+                getattr(args, 'exclude', None),
+                subdir_markers=platform.system_subdir_markers,
             )
 
         # Scan any additional ROM paths (e.g. Recalbox share_init).
@@ -604,7 +621,8 @@ Recommended for SSH use (prevents session drop from killing the audit):
                 if os.path.isdir(extra_path):
                     extra_roms = filehandling.discover_roms(
                         extra_path, system_filter,
-                        getattr(args, 'exclude', None)
+                        getattr(args, 'exclude', None),
+                        subdir_markers=platform.system_subdir_markers,
                     )
                     # Deduplicate by system:romname — user path wins
                     existing_keys = {
@@ -652,7 +670,7 @@ Recommended for SSH use (prevents session drop from killing the audit):
                 recheck_statuses = {
                     'OK', 'FIXED', 'ERROR', 'LAUNCHED', 'TIMEOUT',
                     'GENUINE ERROR', 'MISSING BIOS', 'MISSING CORE',
-                    'NEEDS REVIEW','NO COMBINATIONS'
+                    'NEEDS REVIEW'
                 }
             # --recheck tests all failing statuses
             # --autofix alone only needs ERROR and GENUINE ERROR
